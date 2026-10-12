@@ -103,8 +103,13 @@ table.t{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--ca
 .t tr.rw:hover td{background:#F7F8FD}
 .t td small{display:block;color:var(--mute);font-size:12px}
 .t .ref{font-weight:800;color:var(--navy);white-space:nowrap}
-.av{flex:none;width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:12.5px;overflow:hidden}
-.av img{width:100%;height:100%;object-fit:cover}
+.av{flex:none;width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:12.5px;overflow:hidden;position:relative}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.av.xl{width:84px;height:84px;font-size:24px}
+.phup{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.phup .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex:1;min-width:220px}
+.phup small{display:block;width:100%;font-size:12px;color:var(--mute);margin-top:6px}
+.phup .busy{opacity:.55;pointer-events:none}
 .av.lg{width:52px;height:52px;font-size:16px}
 .who{display:flex;gap:10px;align-items:center}
 
@@ -538,7 +543,7 @@ function sebabTakLayak(pb, p){
 const permitOk = pb => pb.permit_status === "Disahkan" && String(pb.permit_musim) === String(S.musim);
 const tersedia = () => S.pembadal.filter(b => b.status === "Aktif" && String(b.haji).trim() && !kesFor(b));
 const amtOk = p => (Number(p.amaun) || 0) + 0.009 >= (Number(p.harga) || 0);
-const avatar = (b, cls) => `<div class="av ${cls||""}">${b.gambar?`<img src="${esc(b.gambar)}" alt="">`:esc(ini(b.nama))}</div>`;
+const avatar = (b, cls) => `<div class="av ${cls||""}"><span>${esc(ini(b.nama))}</span>${b.gambar?`<img src="${esc(b.gambar)}" alt="" onerror="this.remove()">`:""}</div>`;
 const waLink = (tel, msg) => { const n = String(tel || "").replace(/\D/g, ""); return n ? `https://wa.me/${n}${msg?"?text="+encodeURIComponent(msg):""}` : ""; };
 
 /* ---------- Notifikasi ---------- */
@@ -1015,7 +1020,7 @@ function waPb(id){
 }
 function idCard(b){
   return `<div class="idc"><div class="it"><img src="${LOGO_C}" alt="MKM Badal Haji"><span>KAD PENGENDALI<br>BADAL HAJI</span></div>
-    <div class="ib2"><div class="ph">${b.gambar?`<img src="${esc(b.gambar)}" alt="">`:esc(ini(b.nama))}</div>
+    <div class="ib2"><div class="ph">${b.gambar?`<img src="${esc(b.gambar)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(ini(b.nama))}'))">`:esc(ini(b.nama))}</div>
       <div class="inf"><b>${esc(b.nama)}</b><div class="rl">Pengendali Badal Haji</div>
         <div><span>ID:</span> ${esc(b.id)}</div><div><span>Haji fardu:</span> ${esc(b.haji || "-")}</div><div><span>Musim:</span> ${esc(S.musim)}</div><div><span>Permit:</span> ${permitOk(b)?"Disahkan":esc(b.permit_status||"Belum")}</div></div>
       <div class="qr"><div class="q" data-qr="${esc(verifyUrl(b))}"></div>Imbas untuk sahkan</div></div>
@@ -1060,6 +1065,7 @@ function printCard(id){
 }
 
 function openPb(id){
+  window.PB_EDIT = id || "";
   const b = S.pembadal.find(x => x.id === id) || { status: "Aktif", jantina: "Lelaki", permit_status: "Belum", permit_musim: S.musim };
   const f = (k, label, req, ph, full) => `<div class="${full?"full":""}"><label for="pb_${k}">${label}${req?" <i>*</i>":""}</label><input class="in" id="pb_${k}" value="${esc(b[k]||"")}" placeholder="${esc(ph||"")}"></div>`;
   const sel = (k, label, opts) => `<div><label for="pb_${k}">${label}</label><select class="in" id="pb_${k}">${opts.map(o => `<option ${b[k]===o?"selected":""}>${o}</option>`).join("")}</select></div>`;
@@ -1075,7 +1081,11 @@ function openPb(id){
     ${f("kelulusan","Kelulusan",0,"Contoh: Ijazah Syariah, Universiti Al-Azhar",1)}
     ${f("pengalaman","Pengalaman",0,"Contoh: 6 musim pembimbing ibadah haji")}
     ${f("bahasa","Bahasa",0,"Melayu, Arab")}
-    ${f("gambar","URL gambar profil",0,"https://... (pilihan)",1)}
+    <div class="full"><label for="pbFile">Gambar profil</label><div class="phup"><div id="pbPrev">${avatar(b, "xl")}</div>
+      <div class="acts"><input type="hidden" id="pb_gambar" value="${esc(b.gambar||"")}"><input type="file" id="pbFile" accept="image/jpeg,image/png,image/webp" class="hide" onchange="pbPhoto(this)">
+        <button type="button" class="btn sm" id="pbUp" onclick="$('pbFile').click()">${b.gambar?"Tukar gambar":"Muat naik gambar"}</button>
+        <button type="button" class="btn sm ghost ${b.gambar?"":"hide"}" id="pbDel" onclick="pbPhotoClear()">Buang</button>
+        <small>Gambar muka yang jelas. Sistem akan memotong jadi segi empat dan mengecilkan saiz secara automatik.</small></div></div></div>
     <legend>Permit haji musim semasa</legend>
     ${f("permit_no","No. permit / Kad Nusuk",0,"")}
     ${sel("permit_status","Status permit",["Belum","Dalam proses","Disahkan"])}
@@ -1088,6 +1098,39 @@ function openPb(id){
   setTimeout(() => $("pb_nama").focus(), 50);
 }
 function closeModal(){ $("modal").classList.add("hide"); }
+/* gambar profil pengendali: potong segi empat 600px, muat naik ke Supabase Storage (bucket awam bh-foto) */
+function squareJpeg(file, size){
+  return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(img.width, img.height), c = document.createElement("canvas"); c.width = c.height = Math.min(size, s);
+      c.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      c.toBlob(b => b ? res(b) : rej(new Error("Gambar tidak dapat diproses")), "image/jpeg", 0.86); };
+    img.onerror = () => rej(new Error("Fail ini bukan gambar yang sah")); img.src = url; });
+}
+function pbPhotoShow(url){
+  const nm = ($("pb_nama") && $("pb_nama").value) || "";
+  $("pb_gambar").value = url; $("pbPrev").innerHTML = avatar({ nama: nm, gambar: url }, "xl");
+  $("pbUp").textContent = url ? "Tukar gambar" : "Muat naik gambar"; $("pbDel").classList.toggle("hide", !url);
+}
+function pbPhotoClear(){ pbPhotoShow(""); toast("Gambar dibuang. Tekan Simpan untuk sahkan."); }
+async function pbPhoto(inp){
+  const f = inp.files && inp.files[0]; inp.value = ""; if(!f) return;
+  if(f.size > 15 * 1024 * 1024){ toast("Gambar terlalu besar (maksimum 15MB).", true); return; }
+  const up = $("pbUp"), sv = $("pbSave"); up.disabled = true; sv.disabled = true; up.innerHTML = '<span class="spin"></span> Memuat naik...';
+  try{
+    const blob = await squareJpeg(f, 600);
+    let url;
+    if(DEMO){ url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }); }
+    else {
+      const id = (window.PB_EDIT || "baru").replace(/[^A-Za-z0-9-]/g, "");
+      const path = `pengendali/${id}-${Date.now()}.jpg`;
+      const { error } = await SBC.storage.from("bh-foto").upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000", upsert: false });
+      if(error) throw new Error(/row-level|security|not found|bucket/i.test(error.message) ? "Storan gambar belum disediakan. Jalankan SQL bh-foto dalam Supabase dahulu." : error.message);
+      url = SBC.storage.from("bh-foto").getPublicUrl(path).data.publicUrl;
+    }
+    pbPhotoShow(url); toast("Gambar dimuat naik. Tekan Simpan untuk sahkan.");
+  }catch(e){ toast(e.message || "Muat naik gagal", true); up.textContent = $("pb_gambar").value ? "Tukar gambar" : "Muat naik gambar"; }
+  finally{ up.disabled = false; sv.disabled = false; }
+}
 async function savePb(id){
   const v = k => ($("pb_" + k).value || "").trim();
   const pb = { id, nama: v("nama"), jantina: v("jantina"), telefon: v("telefon"), emel: v("emel"), haji: v("haji"), kelulusan: v("kelulusan"),

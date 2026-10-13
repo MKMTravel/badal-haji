@@ -514,6 +514,7 @@ async function load(o = {}){
   try{
     const j = await api("admin_data");
     S.musim = j.musim; S.portal_url = j.portal_url || ""; S.portal_pb_url = j.portal_pb_url || ""; S.rukun_total = j.rukun_total || 14; S.bcl_url = j.bcl_url || "https://bcl.my"; S.pendaftar = j.pendaftar || []; S.pembadal = j.pembadal || [];
+    await ppLoad();
     updateNotif(true);
     if(o.silent && busy()){ renderNav(); return; }
     render();
@@ -632,7 +633,8 @@ const ICON = {
   agihan: '<path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/>',
   pendaftaran: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
   abandon: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
-  pengendali: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M18 9l1.5 1.5L22 8"/>'
+  pengendali: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/><path d="M18 9l1.5 1.5L22 8"/>',
+  permohonan: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>'
 };
 const navBtn = (k, t, b) => `<button class="${S.page===k?"on":""}" onclick="go('${k}')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>${t}${b?`<span class="b">${b}</span>`:""}</button>`;
 function renderNav(){
@@ -640,7 +642,7 @@ function renderNav(){
   $("nav").innerHTML = navBtn("ringkasan","Ringkasan") +
     `<div class="ngroup">Operasi</div>` + navBtn("pembayaran","Pembayaran",pay) + navBtn("agihan","Agihan pengendali",ag) + navBtn("pendaftaran","Pendaftaran") +
     `<div class="ngroup">Susulan</div>` + navBtn("abandon","Abandon",ab);
-  $("navb").innerHTML = `<div class="ngroup" style="padding-top:4px">Pasukan</div>` + navBtn("pengendali","Pengendali");
+  $("navb").innerHTML = `<div class="ngroup" style="padding-top:4px">Pasukan</div>` + navBtn("pengendali","Pengendali") + navBtn("permohonan","Permohonan",(S.pp||[]).filter(p => p.status === "Baru").length);
   $("musimPill").textContent = "Musim " + (S.musim || "-");
   $("fMusim").textContent = "Musim semasa: " + (S.musim || "-");
 }
@@ -653,10 +655,11 @@ function render(){
     agihan: ["Agihan pengendali", "Tugaskan pengendali kepada kes yang bayarannya telah disahkan. Kes yang selesai diagih akan hilang dari senarai."],
     pendaftaran: ["Pendaftaran", "Semua pendaftar yang telah membayar, perjalanan setiap kes, portal penjejakan dan WhatsApp."],
     abandon: ["Abandon", "Pendaftar yang belum melengkapkan bayaran. Hantar peringatan dan pautan bayaran baharu."],
-    pengendali: ["Pengendali badal haji", "Profil, kad pengendali berQR dan senarai kes yang dikendalikan."]
+    pengendali: ["Pengendali badal haji", "Profil, kad pengendali berQR dan senarai kes yang dikendalikan."],
+    permohonan: ["Permohonan pengendali", "Permohonan daripada borang awam untuk menjadi pengendali badal haji. Semak dokumen, kemudian luluskan atau tolak."]
   }[S.page];
   $("pgTitle").textContent = T[0]; $("pgSub").textContent = T[1];
-  $("page").innerHTML = ({ ringkasan: vRingkasan, pembayaran: vPembayaran, agihan: vAgihan, pendaftaran: vPendaftaran, abandon: vAbandon, pengendali: vPengendali })[S.page]();
+  $("page").innerHTML = ({ ringkasan: vRingkasan, pembayaran: vPembayaran, agihan: vAgihan, pendaftaran: vPendaftaran, abandon: vAbandon, pengendali: vPengendali, permohonan: vPermohonan })[S.page]();
   if(S.page === "pengendali") drawQRs();
 }
 
@@ -1148,9 +1151,158 @@ async function savePb(id){
   if(!pb.telefon){ toast("Sila isi no. telefon", true); return; }
   if(!pb.haji && !confirm("Tahun haji fardu kosong. Pengendali ini tidak boleh ditugaskan sehingga diisi. Simpan juga?")) return;
   const b = $("pbSave"); b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-  try{ await api("admin_pembadal_save", { pembadal: pb }); closeModal(); toast(id ? "Pengendali dikemas kini" : "Pengendali ditambah"); await load(); }
+  try{ await api("admin_pembadal_save", { pembadal: pb }); if(window.PP_AFTER){ try{ await window.PP_AFTER(); }catch(e){ toast(e.message, true); } window.PP_AFTER = null; } closeModal(); toast(id ? "Pengendali dikemas kini" : "Pengendali ditambah"); await load(); }
   catch(e){ toast(e.message, true); b.disabled = false; b.textContent = "Simpan"; }
 }
+
+/* ---------- Permohonan pengendali (borang daftar-pembadal.html) ---------- */
+S.pp = []; S.ppTab = "Baru"; S.ppq = "";
+const PP_BUCKET = "bh-permohonan";
+const ppForm = () => new URL("daftar-pembadal.html", location.href).href;
+const ppTel = t => { let n = String(t || "").replace(/\D/g, ""); if(n.startsWith("0")) n = "6" + n; return n; };
+const ppPill = s => s === "Baru" ? "warn" : s === "Dalam semakan" ? "" : s === "Diluluskan" ? "ok" : "bad";
+async function ppLoad(){
+  if(DEMO){ if(!S.pp.length) S.pp = ppDemo(); return; }
+  try{
+    const { data, error } = await SBC.from("bh_permohonan_pembadal").select("*").order("created_at", { ascending: false }).limit(500);
+    if(error) throw error;
+    const paths = data.map(p => p.gambar_path).filter(Boolean);
+    if(paths.length){
+      const { data: su } = await SBC.storage.from(PP_BUCKET).createSignedUrls(paths, 3600);
+      const m = {}; (su || []).forEach(x => { if(x.signedUrl) m[x.path] = x.signedUrl; });
+      data.forEach(p => p._img = m[p.gambar_path] || "");
+    }
+    S.pp = data; S.ppErr = "";
+  }catch(e){ S.ppErr = /relation|does not exist|schema cache/i.test(e.message || "") ? "Jadual permohonan belum disediakan. Jalankan fail SQL BH-003 dalam Supabase." : (e.message || "Ralat memuatkan permohonan"); }
+}
+function vPermohonan(){
+  const F = [["Baru","Baru"],["Dalam semakan","Dalam semakan"],["Diluluskan","Diluluskan"],["Ditolak","Ditolak"],["semua","Semua"]];
+  const q = S.ppq.toLowerCase();
+  const list = S.pp.filter(p => S.ppTab === "semua" || p.status === S.ppTab).filter(p => !q || [p.ref, p.nama, p.telefon, p.emel, p.institusi, p.menetap].join(" ").toLowerCase().includes(q));
+  const n = k => S.pp.filter(p => k === "semua" || p.status === k).length;
+  return `${S.ppErr ? `<div class="note warn" style="margin-bottom:12px">${esc(S.ppErr)}</div>` : ""}
+  <div class="vbar"><div><b>${n("Baru")}</b>permohonan baharu</div><div><b>${n("Dalam semakan")}</b>dalam semakan</div><div><b>${n("Diluluskan")}</b>diluluskan</div></div>
+  <div class="bar"><input class="in" placeholder="Cari nama, telefon, institusi..." value="${esc(S.ppq)}" oninput="S.ppq=this.value;$('pplist').outerHTML=ppList()">
+    <button class="btn ghost" style="margin-left:auto" onclick="copyText(ppForm(),'Pautan borang permohonan disalin')">${SVG.copy} Salin pautan borang</button>
+    <a class="btn ghost" style="text-decoration:none" href="${esc(ppForm())}" target="_blank" rel="noopener">${SVG.portal} Buka borang</a></div>
+  <div class="tabs">${F.map(([k,t]) => `<button class="${S.ppTab===k?"on":""}" onclick="S.ppTab='${k}';render()">${t}<span class="n">${n(k)}</span></button>`).join("")}</div>
+  ${ppList(list)}`;
+}
+function ppList(list){
+  if(!list){ const q = S.ppq.toLowerCase(); list = S.pp.filter(p => S.ppTab === "semua" || p.status === S.ppTab).filter(p => !q || [p.ref, p.nama, p.telefon, p.emel, p.institusi, p.menetap].join(" ").toLowerCase().includes(q)); }
+  if(!list.length) return `<div class="card" id="pplist"><div class="empty">${S.ppTab==="Baru"?"Tiada permohonan baharu. Kongsi pautan borang kepada bakal pengendali.":"Tiada permohonan untuk paparan ini."}</div></div>`;
+  return `<div class="qlist abn" id="pplist">${list.map(p => `<div class="qc">
+    <div><span class="ref">${esc(p.ref)}</span><small>${dtt(p.created_at)}</small><small>${esc(ago(p.created_at))}</small></div>
+    <div style="display:flex;gap:12px;align-items:center">${avatar({ nama: p.nama, gambar: p._img })}<div style="min-width:0"><b>${esc(p.nama)}</b><small>${esc(p.jantina||"")} | ${esc(p.telefon)}</small><small>${esc(p.menetap||"-")} | ${esc(p.status_diri||"-")}</small></div></div>
+    <div><span class="pill ${ppPill(p.status)}">${esc(p.status)}</span><small style="margin-top:4px">Haji fardu: <b>${esc(p.haji||"-")}</b></small><small>${esc(p.kelulusan||"")}${p.institusi?", "+esc(p.institusi):""}</small></div>
+    <div class="act">${ppTel(p.telefon)?`<button class="btn sm wa" onclick="ppWa('${esc(p.ref)}','hubungi')">${SVG.wa} WhatsApp</button>`:""}<button class="btn sm" onclick="openPp('${esc(p.ref)}')">Semak</button></div></div>`).join("")}</div>`;
+}
+async function ppDoc(path){
+  if(!path) return;
+  if(DEMO){ toast("Mod demo: dokumen contoh tiada."); return; }
+  const w = window.open("about:blank", "_blank");
+  const { data, error } = await SBC.storage.from(PP_BUCKET).createSignedUrl(path, 900);
+  if(error || !data){ if(w) w.close(); toast("Dokumen tidak dapat dibuka: " + (error ? error.message : ""), true); return; }
+  if(w) w.location = data.signedUrl; else window.open(data.signedUrl, "_blank", "noopener");
+}
+function openPp(ref){
+  const p = S.pp.find(x => x.ref === ref); if(!p) return;
+  S.open = "";
+  const umur = p.tarikh_lahir ? Math.floor((Date.now() - new Date(p.tarikh_lahir)) / 31557600000) : null;
+  const doc = (label, path) => path ? `<button class="btn sm ghost" onclick="ppDoc('${esc(path)}')">${SVG.portal} ${label}</button>` : `<span class="pill grey">${label}: tiada</span>`;
+  const dup = S.pembadal.find(b => ppTel(b.telefon) && ppTel(b.telefon) === ppTel(p.telefon));
+  $("dpanel").innerHTML = `<div class="dh"><div><h3>${esc(p.nama)}</h3><small>${esc(p.ref)} | ${esc(p.status)}</small></div><button class="x" onclick="closeDrawer()" aria-label="Tutup">&times;</button></div>
+  <div class="db">
+    <div class="sec" style="display:flex;gap:16px;align-items:center">${avatar({ nama: p.nama, gambar: p._img }, "xl")}<div><b style="font-size:16px">${esc(p.nama)}</b><br><small>${esc(p.jantina||"-")}${umur!==null?` | ${umur} tahun`:""} | ${esc(p.warganegara||"-")}</small><br><span class="pill ${ppPill(p.status)}" style="margin-top:6px">${esc(p.status)}</span></div></div>
+    ${dup ? `<div class="note warn" style="margin:0 0 12px">No. telefon ini sudah wujud sebagai pengendali: <b>${esc(dup.nama)}</b> (${esc(dup.id)}).</div>` : ""}
+    ${!p.haji ? `<div class="note warn" style="margin:0 0 12px">Tiada tahun haji fardu. Pemohon tidak layak menjadi pembadal.</div>` : ""}
+    <div class="sec"><h4>Tindakan</h4><div class="row">
+      ${p.status !== "Diluluskan" ? `<button class="btn sm" onclick="ppApprove('${esc(p.ref)}')">Luluskan & daftar pengendali</button>` : ""}
+      ${p.status === "Baru" ? `<button class="btn sm ghost" onclick="ppSet('${esc(p.ref)}','Dalam semakan')">Tanda dalam semakan</button>` : ""}
+      ${p.status !== "Ditolak" && p.status !== "Diluluskan" ? `<button class="btn sm ghost" onclick="ppReject('${esc(p.ref)}')">Tolak</button>` : ""}
+      ${p.status === "Ditolak" ? `<button class="btn sm ghost" onclick="ppSet('${esc(p.ref)}','Dalam semakan')">Buka semula</button>` : ""}
+      ${ppTel(p.telefon) ? `<button class="btn sm wa" onclick="ppWa('${esc(p.ref)}','hubungi')">${SVG.wa} WhatsApp</button>` : ""}</div>
+      ${p.catatan_admin ? `<p style="margin:10px 0 0;font-size:13px"><b>Catatan admin:</b> ${esc(p.catatan_admin)}</p>` : ""}
+      ${p.tarikh_semakan ? `<p style="margin:4px 0 0;font-size:12px;color:var(--mute)">Dikemas kini ${dtt(p.tarikh_semakan)}</p>` : ""}</div>
+    <div class="sec"><h4>Dokumen</h4><div class="row">${doc("Gambar profil", p.gambar_path)}${doc("KP / pasport", p.dok_id_path)}${doc("Iqamah / visa", p.dok_iqamah_path)}${doc("Sijil / surat sokongan", p.dok_sijil_path)}</div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--mute)">Dokumen disimpan secara peribadi. Pautan dibuka sah selama 15 minit sahaja.</p></div>
+    <div class="sec"><h4>Maklumat peribadi</h4><dl class="kv"><dt>No. KP / pasport</dt><dd>${esc(p.no_id||"-")}</dd><dt>Tarikh lahir</dt><dd>${p.tarikh_lahir?dt(p.tarikh_lahir):"-"}</dd>
+      <dt>Telefon</dt><dd>${esc(p.telefon||"-")}</dd><dt>Emel</dt><dd>${esc(p.emel||"-")}</dd><dt>Alamat</dt><dd>${esc(p.alamat||"-")}</dd></dl></div>
+    <div class="sec"><h4>Kelayakan</h4><dl class="kv"><dt>Haji fardu</dt><dd>${esc(p.haji||"Tiada")}</dd><dt>Menetap di</dt><dd>${esc(p.menetap||"-")}</dd><dt>Status</dt><dd>${esc(p.status_diri||"-")}</dd>
+      <dt>Kelulusan</dt><dd>${esc(p.kelulusan||"-")}</dd><dt>Institusi</dt><dd>${esc(p.institusi||"-")}</dd><dt>Pengalaman</dt><dd>${p.pengalaman_musim!=null?esc(p.pengalaman_musim)+" musim":"-"}${p.pengalaman?`<br><small>${esc(p.pengalaman)}</small>`:""}</dd><dt>Bahasa</dt><dd>${esc(p.bahasa||"-")}</dd></dl></div>
+    <div class="sec"><h4>Rujukan</h4><dl class="kv"><dt>Nama</dt><dd>${esc(p.rujukan_nama||"-")}</dd><dt>Telefon</dt><dd>${esc(p.rujukan_telefon||"-")}${ppTel(p.rujukan_telefon)?` <a href="https://wa.me/${ppTel(p.rujukan_telefon)}" target="_blank" rel="noopener" style="margin-left:6px">WhatsApp</a>`:""}</dd><dt>Hubungan</dt><dd>${esc(p.rujukan_hubungan||"-")}</dd></dl></div>
+  </div>`;
+  $("drawer").classList.remove("hide"); document.body.style.overflow = "hidden";
+}
+async function ppUpdate(ref, patch){
+  const p = S.pp.find(x => x.ref === ref); if(!p) return;
+  patch.tarikh_semakan = new Date().toISOString();
+  if(!DEMO){
+    const { data: s } = await SBC.auth.getSession(); if(s && s.session) patch.disemak_oleh = s.session.user.id;
+    const { error } = await SBC.from("bh_permohonan_pembadal").update(patch).eq("ref", ref);
+    if(error) throw new Error(error.message);
+  }
+  Object.assign(p, patch);
+}
+async function ppSet(ref, status){
+  try{ await ppUpdate(ref, { status }); toast(`${ref}: ${status}`); renderNav(); openPp(ref); }
+  catch(e){ toast(e.message, true); }
+}
+async function ppReject(ref){
+  const why = prompt("Sebab permohonan ditolak (untuk rekod admin):", ""); if(why === null) return;
+  try{ await ppUpdate(ref, { status: "Ditolak", catatan_admin: why.trim() || null }); toast(`${ref} ditolak`, false, ["Maklumkan pemohon", `ppWa('${ref}','tolak')`]); renderNav(); openPp(ref); }
+  catch(e){ toast(e.message, true); }
+}
+function ppWa(ref, type){
+  const p = S.pp.find(x => x.ref === ref); if(!p) return;
+  const nm = String(p.nama || "").split(/\s+(bin|binti)\s+/i)[0];
+  const msg = {
+    hubungi: `Assalamualaikum ${nm}.\n\nTerima kasih atas permohonan menjadi pengendali badal haji MKM (${p.ref}). Kami sedang menyemak permohonan dan ingin bertanya beberapa perkara.`,
+    lulus: `Assalamualaikum ${nm}.\n\nAlhamdulillah, permohonan anda sebagai pengendali badal haji MKM (${p.ref}) telah diluluskan. Pautan Portal Pengendali akan dihantar sebaik sahaja tugasan diagihkan.\n\nJazakallahu khairan.`,
+    tolak: `Assalamualaikum ${nm}.\n\nTerima kasih atas permohonan menjadi pengendali badal haji MKM (${p.ref}). Setelah semakan, kami mohon maaf kerana permohonan anda belum dapat diterima buat masa ini.\n\nSemoga Allah permudahkan urusan anda.`
+  }[type];
+  const n = ppTel(p.telefon); if(n) window.open(`https://wa.me/${n}?text=${encodeURIComponent(msg)}`, "_blank", "noopener"); else copyText(msg, "Mesej disalin");
+}
+/* Lulus: buka borang pengendali sedia ada dengan maklumat pemohon, gambar disalin ke bh-foto */
+async function ppApprove(ref){
+  const p = S.pp.find(x => x.ref === ref); if(!p) return;
+  if(!p.haji && !confirm("Pemohon ini tiada tahun haji fardu. Teruskan juga?")) return;
+  closeDrawer();
+  openPb("");
+  const set = (k, v) => { const el = $("pb_" + k); if(el && v) el.value = v; };
+  set("nama", p.nama); set("jantina", p.jantina); set("telefon", ppTel(p.telefon) || p.telefon); set("emel", p.emel); set("haji", p.haji);
+  set("kelulusan", [p.kelulusan, p.institusi].filter(Boolean).join(", "));
+  set("pengalaman", p.pengalaman_musim != null ? `${p.pengalaman_musim} musim` + (p.pengalaman ? `. ${p.pengalaman}` : "") : p.pengalaman);
+  set("bahasa", p.bahasa);
+  set("catatan", `Dari permohonan ${p.ref}. Menetap: ${p.menetap || "-"} (${p.status_diri || "-"}). KP/pasport: ${p.no_id || "-"}.`);
+  $("mbox").querySelector(".mb").insertAdjacentHTML("afterbegin", `<div class="note info" style="margin-bottom:12px">Maklumat diisi daripada permohonan <b>${esc(p.ref)}</b>. Semak, lengkapkan permit, kemudian tekan Simpan. Permohonan akan ditanda Diluluskan.</div>`);
+  window.PP_AFTER = async () => { await ppUpdate(ref, { status: "Diluluskan" }); setTimeout(() => toast(`${ref} diluluskan dan didaftar sebagai pengendali`, false, ["Maklumkan pemohon", `ppWa('${ref}','lulus')`]), 2600); };
+  if(p.gambar_path || p._img){
+    const up = $("pbUp"), sv = $("pbSave"); up.disabled = true; sv.disabled = true; up.innerHTML = '<span class="spin"></span> Menyalin gambar...';
+    try{
+      let url;
+      if(DEMO){ url = p._img; }
+      else {
+        const { data: blob, error } = await SBC.storage.from(PP_BUCKET).download(p.gambar_path); if(error) throw error;
+        const path = `pengendali/${ref.replace(/[^A-Za-z0-9-]/g, "")}-${Date.now()}.jpg`;
+        const r = await SBC.storage.from("bh-foto").upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000", upsert: false }); if(r.error) throw r.error;
+        url = SBC.storage.from("bh-foto").getPublicUrl(path).data.publicUrl;
+      }
+      pbPhotoShow(url);
+    }catch(e){ toast("Gambar tidak dapat disalin, sila muat naik semula: " + (e.message || ""), true); up.textContent = "Muat naik gambar"; }
+    finally{ up.disabled = false; sv.disabled = false; }
+  }
+}
+function ppDemo(){
+  const d = x => new Date(Date.now() - x * 36e5).toISOString();
+  const pic = c => "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'><rect width='80' height='80' fill='${c}'/><circle cx='40' cy='32' r='15' fill='#E8D5C4'/><rect x='18' y='52' width='44' height='30' rx='14' fill='#F5F5F5'/></svg>`);
+  return [
+    { ref: "PP-261013-K7QD", created_at: d(2), status: "Baru", nama: "Muhammad Hanif bin Abdul Rahman", jantina: "Lelaki", no_id: "960412-03-5531", tarikh_lahir: "1996-04-12", warganegara: "Malaysia", telefon: "+966 55 812 4410", emel: "hanif.rahman@contoh.com", alamat: "Aziziah, Makkah", haji: "1442H / 2021", menetap: "Makkah", status_diri: "Pelajar", kelulusan: "Ijazah Sarjana Muda Syariah", institusi: "Universiti Ummul Qura", pengalaman_musim: 2, pengalaman: "Pembimbing ibadah jemaah Malaysia 2023 dan 2024", bahasa: "Melayu, Arab", gambar_path: "demo", dok_id_path: "demo", dok_iqamah_path: "demo", rujukan_nama: "Ustaz Hafiz bin Omar", rujukan_telefon: "60123334455", rujukan_hubungan: "Pensyarah", _img: pic("#3B4A8F") },
+    { ref: "PP-261012-3MXA", created_at: d(26), status: "Baru", nama: "Nur Hidayah binti Kamarul", jantina: "Perempuan", no_id: "A51234987", tarikh_lahir: "1993-09-02", warganegara: "Malaysia", telefon: "0137788990", emel: "hidayah.k@contoh.com", alamat: "Madinah", haji: "1440H / 2019", menetap: "Madinah", status_diri: "Pelajar", kelulusan: "Sarjana Hadis", institusi: "Universiti Islam Madinah", pengalaman_musim: 1, pengalaman: "", bahasa: "Melayu, Arab, Inggeris", gambar_path: "demo", dok_id_path: "demo", _img: pic("#7A3B5A") },
+    { ref: "PP-261009-WQ2P", created_at: d(98), status: "Dalam semakan", nama: "Ahmad Syafiq bin Yusof", jantina: "Lelaki", no_id: "890220-14-6011", tarikh_lahir: "1989-02-20", warganegara: "Malaysia", telefon: "0192223344", emel: "syafiq.y@contoh.com", alamat: "Shah Alam, Selangor", haji: "1438H / 2017", menetap: "Malaysia", status_diri: "Mutawwif / pembimbing ibadah", kelulusan: "Diploma Pengajian Islam", institusi: "KUIS", pengalaman_musim: 6, pengalaman: "Mutawwif umrah 8 tahun, badal haji 3 musim", bahasa: "Melayu, Arab", gambar_path: "demo", dok_id_path: "demo", dok_sijil_path: "demo", catatan_admin: "Tunggu surat sokongan", tarikh_semakan: d(20), _img: pic("#2E6B4F") }
+  ];
+}
+const _ppOpenPb = openPb; openPb = function(id){ window.PP_AFTER = null; return _ppOpenPb(id); };
 
 /* ---------- Mod demo ---------- */
 const DM = (() => {

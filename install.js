@@ -94,7 +94,7 @@
   }
   function show(m){
     if(snoozed() || standalone()) return;
-    if(document.querySelector(".sheet:not(.hide)")) { setTimeout(() => show(m), 4000); return; }
+    if(!document.body){ setTimeout(() => show(m), 100); return; }
     mode = m; mount(); render();
     requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add("show")));
   }
@@ -112,19 +112,20 @@
   window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault(); deferred = e;
     if(box && mode !== "prompt"){ mode = "prompt"; render(); return; }
-    setTimeout(() => show("prompt"), 2500);
+    if(!box) show("prompt");
   });
   window.addEventListener("appinstalled", () => {
     deferred = null; try{ localStorage.setItem(KEY, String(Date.now() + 3650 * 864e5)); }catch(e){}
     if(box){ box.innerHTML = `<div class="bhi-h"><img src="icons/${APP}/icon-192.png" alt=""><div><b>${L().done}</b></div></div>`; setTimeout(() => hide(false), 3500); }
   });
   /* iPhone tiada butang install automatik: tunjuk arahan. Android tanpa prompt (contoh dalam WhatsApp): tunjuk arahan manual. */
-  window.addEventListener("load", () => {
-    if(isIOS) setTimeout(() => { if(!box) show("ios"); }, 3000);
-    else if(isAndroid) setTimeout(() => { if(!box && !deferred) show("android"); }, 6000);
-    else if(isMacSafari) setTimeout(() => { if(!box) show("mac"); }, 3000);
+  const go = () => {
+    if(isIOS) setTimeout(() => { if(!box) show("ios"); }, 300);
+    else if(isAndroid) setTimeout(() => { if(!box && !deferred) show("android"); }, 1500);
+    else if(isMacSafari) setTimeout(() => { if(!box) show("mac"); }, 300);
     /* Chrome / Edge di komputer & Chromebook: pop-up keluar melalui beforeinstallprompt. Firefox komputer tidak menyokong pemasangan app. */
-  });
+  };
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
   /* tukar bahasa portal: kemas kini teks pop-up */
   new MutationObserver(() => { if(box) render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
   window.BH_INSTALL = { show: () => { try{ localStorage.removeItem(KEY); }catch(e){} show(deferred ? "prompt" : isIOS ? "ios" : isMacSafari ? "mac" : "android"); } };

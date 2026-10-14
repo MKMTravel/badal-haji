@@ -1,6 +1,6 @@
 {
-  "name": "Portal Pengendali Badal Haji MKM",
-  "short_name": "Pengendali BH",
+  "name": "Badal Haji | Portal Pembadal",
+  "short_name": "Badal Haji | Portal Pembadal",
   "lang": "ms",
   "dir": "ltr",
   "display": "standalone",
@@ -9,28 +9,29 @@
   "theme_color": "#12206B",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/pembadal/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/pembadal/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-maskable-192.png",
+      "src": "icons/pembadal/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icons/icon-maskable-512.png",
+      "src": "icons/pembadal/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "scope": "./pengendali.html"
 }

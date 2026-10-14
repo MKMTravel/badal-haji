@@ -1,8 +1,8 @@
 {
-  "name": "Admin Badal Haji MKM",
-  "short_name": "Admin BH",
+  "name": "Admin Badal Haji",
+  "short_name": "Admin Badal Haji",
   "start_url": "./admin.html",
-  "scope": "./",
+  "scope": "./admin.html",
   "lang": "ms",
   "dir": "ltr",
   "display": "standalone",
@@ -11,28 +11,29 @@
   "theme_color": "#12206B",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/admin/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/admin/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-maskable-192.png",
+      "src": "icons/admin/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icons/icon-maskable-512.png",
+      "src": "icons/admin/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "id": "./admin"
 }

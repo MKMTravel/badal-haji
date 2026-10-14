@@ -1,8 +1,8 @@
 {
-  "name": "Pendaftaran Badal Haji MKM",
-  "short_name": "Badal Haji",
+  "name": "Badal Haji | Pendaftaran",
+  "short_name": "Badal Haji | Pendaftaran",
   "start_url": "./index.html",
-  "scope": "./",
+  "scope": "./index.html",
   "lang": "ms",
   "dir": "ltr",
   "display": "standalone",
@@ -11,28 +11,29 @@
   "theme_color": "#12206B",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/pendaftar/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/pendaftar/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-maskable-192.png",
+      "src": "icons/pendaftar/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icons/icon-maskable-512.png",
+      "src": "icons/pendaftar/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "id": "./pendaftaran"
 }

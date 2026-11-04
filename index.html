@@ -659,6 +659,20 @@ const TR_BANKS = [
   { id: "cimb", bank: "CIMB Bank", no: "8602108663", nama: "MKM Ticketing Travel & Tours Sdn Bhd" }
 ];
 const TRS = { ref: "", file: null, pdf: false, needPhone: false };
+/* Salinan resit ke Google Drive MKM (Apps Script "Resit Badal Haji MKM"); kosongkan RESIT_DRIVE_URL untuk matikan */
+const RESIT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbwtAUcORaK9WM8M2HcOrs8GOaVfw72Z3AtKDG1YGVAHPoK_2SCnEkUD5MONV2p4YVq4iw/exec";
+const RESIT_DRIVE_KEY = "bh-resit-2026";
+function trDrive(bank, tel){
+  if(!RESIT_DRIVE_URL || !TRS.file) return;
+  try{
+    const fr = new FileReader();
+    fr.onload = () => {
+      const body = JSON.stringify({ k: RESIT_DRIVE_KEY, ref: TRS.ref, nama: val("nama"), telefon: tel, bank: bank.bank, tarikh: $("trDate").value, nota: val("trNota"), musim: (window.CONF && CONF.musim) || "", mime: TRS.pdf ? "application/pdf" : "image/jpeg", data: String(fr.result).split(",")[1] });
+      fetch(RESIT_DRIVE_URL, { method: "POST", body, headers: { "Content-Type": "text/plain;charset=utf-8" }, keepalive: true }).catch(() => {});
+    };
+    fr.readAsDataURL(TRS.file);
+  }catch(e){}
+}
 const trSb = (!DEMO && window.supabase && TR_SB_URL) ? window.supabase.createClient(TR_SB_URL, TR_SB_KEY, { auth: { persistSession: false } }) : null;
 
 async function trCopy(t, msg){ try{ await navigator.clipboard.writeText(t); trToast(msg || "Disalin"); }catch(e){ prompt("Salin:", t); } }
@@ -713,6 +727,7 @@ async function trHantar(){
     const { data, error } = await trSb.rpc("bh_hantar_resit", { p_ref: TRS.ref, p_telefon: tel, p_path: path, p_bank: bank.bank, p_tarikh: $("trDate").value, p_nota: val("trNota") });
     if(error) throw new Error(error.message);
     if(!data || !data.ok) throw new Error((data && data.error) || "Resit tidak dapat dihantar");
+    trDrive(bank, tel);
     showResitOk(TRS.ref);
   }catch(e){
     trError("Maaf, resit tidak dapat dihantar (" + (e.message || e) + "). Sila cuba lagi atau hantar resit melalui WhatsApp MKM bersama no. rujukan " + TRS.ref + ".");

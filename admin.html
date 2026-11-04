@@ -806,7 +806,9 @@ function tracker(p){
   const short = ["Dibayar","Disahkan","Pengendali","Pelaksanaan","Sijil"];
   const cells = short.map((t, i) => `<div class="tc ${done[i]?"on":i===cur?"cur":""} ${i&&done[i]?"lon":""}"><i></i><span>${t}</span></div>`).join("");
   const cls = s.k === "ok" ? "g" : (s.k === "masalah" || s.k === "ansuran") ? "w" : "r";
-  const label = s.k === "ok" ? ((p.ci_n||0) >= (S.rukun_total||14) ? "Selesai: semua rukun dilaksanakan" : p.ci_n ? `Pelaksanaan: ${p.ci_n}/${S.rukun_total} rukun${p.ci_flag?`, ${p.ci_flag} perlu semakan lokasi`:""}` : "Seterusnya: pelaksanaan pada musim haji") : "Seterusnya: " + s.t.toLowerCase();
+  const label = s.k === "ok" ? ((p.ci_n||0) >= (S.rukun_total||14) ? "Selesai: semua rukun dilaksanakan" : p.ci_n ? `Pelaksanaan: ${p.ci_n}/${S.rukun_total} rukun${p.ci_flag?`, ${p.ci_flag} perlu semakan lokasi`:""}` : "Seterusnya: pelaksanaan pada musim haji")
+    : s.k === "ansuran" ? `Ansuran: dibayar ${rm(sahOf(p))} / ${rm(p.harga)}, baki ${rm(bakiOf(p))}. Agihan pengendali selepas bayaran penuh.`
+    : "Seterusnya: " + s.t.toLowerCase();
   return `<div class="trk2">${cells}</div><div class="trkl ${cls}">${esc(label)}</div>`;
 }
 function portalLink(p){ return (S.portal_url || "") ? `${S.portal_url}${S.portal_url.includes("?")?"&":"?"}ref=${encodeURIComponent(p.ref)}&t=${encodeURIComponent(p.token||"")}` : ""; }
@@ -1084,7 +1086,9 @@ function vAgihan(){
   const baru = by("ustaz").sort((a, b) => String(a.tarikh_semakan).localeCompare(String(b.tarikh_semakan)));
   const siap = by("ok");
   const T = tersedia();
-  const tabs = `<div class="tabs"><button class="${S.agTab==="baru"?"on":""}" onclick="S.agTab='baru';render()">Perlu diagih<span class="n ${baru.length?"r":""}">${baru.length}</span></button><button class="${S.agTab==="siap"?"on":""}" onclick="S.agTab='siap';render()">Telah ditugaskan<span class="n">${siap.length}</span></button></div>`;
+  const ans = by("ansuran");
+  const ansNote = ans.length ? `<div class="note info" style="margin-bottom:12px"><b>${ans.length} kes ansuran belum layak diagih</b> (pengendali hanya ditugaskan selepas bayaran penuh disahkan): ${ans.map(p => `${esc(p.ref)} baki ${rm(bakiOf(p))}`).join(", ")}. Lihat di <a href="#" onclick="S.payTab='ansuran';go('pembayaran');return false">Pembayaran &gt; Ansuran</a>.</div>` : "";
+  const tabs = ansNote + `<div class="tabs"><button class="${S.agTab==="baru"?"on":""}" onclick="S.agTab='baru';render()">Perlu diagih<span class="n ${baru.length?"r":""}">${baru.length}</span></button><button class="${S.agTab==="siap"?"on":""}" onclick="S.agTab='siap';render()">Telah ditugaskan<span class="n">${siap.length}</span></button></div>`;
   if(S.agTab === "siap"){
     return tabs + (siap.length ? `<div class="card"><div class="scroll"><table class="t"><thead><tr><th>Rujukan</th><th>Dibadalkan</th><th>Pengendali</th><th>Permit</th><th>Ditugaskan</th><th></th></tr></thead><tbody>
     ${siap.map(p => { const u = S.pembadal.find(b => b.id === p.ustaz_id) || { nama: p.ustaz }; return `<tr><td><span class="ref">${esc(p.ref)}</span></td><td>${esc(gelaran(p))}<small>oleh ${esc(p.nama)}</small></td>

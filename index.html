@@ -287,16 +287,24 @@ textarea.in{height:auto;padding:11px 13px;resize:vertical;line-height:1.5}
  <section id="payres" class="done hide"><div class="tick" id="prIcon"></div><h2 id="prTitle"></h2><p>No. rujukan</p><div class="ref" id="prRef"></div><p id="prMsg"></p><div id="prAct" class="act"></div></section>
 <section id="transfer" class="tr hide">
  <h2>Bayaran badal haji</h2>
- <p class="lead">Sila buat pindahan bank ke salah satu akaun di bawah, kemudian muat naik resit.</p>
+ <p class="lead">Bayaran boleh dibuat sekali gus atau secara beransur. Buat pindahan bank ke akaun MKM, kemudian muat naik resit setiap kali membayar.</p>
  <div class="refbox"><small>No. rujukan pendaftaran</small><div class="ref" id="trRef"></div><small>Tulis no. rujukan ini dalam ruangan <b>Recipient Reference</b> semasa transfer</small></div>
+ <div id="trGate" class="hide">
+  <div class="stp"><div class="sh2"><span class="k">&#10003;</span><b>Sahkan pendaftaran anda</b></div><div class="sb2">
+   <div class="f"><label for="trPhone">No. telefon yang didaftarkan <i class="req">*</i></label><input class="in" id="trPhone" type="tel" inputmode="tel" placeholder="012 345 6789"><div class="hint">Untuk melihat status bayaran dan menghantar resit bagi pendaftaran ini.</div></div>
+   <div class="err" id="trGateErr"></div>
+   <button class="btn2" type="button" id="trSemakBtn" onclick="trSemak()">Semak status bayaran</button>
+  </div></div>
+ </div>
+ <div id="trSteps">
+ <div class="bal" id="trBal"></div>
  <div class="steps">
   <div class="stp"><div class="sh2"><span class="k">1</span><b>Pilih akaun dan buat pindahan</b></div><div class="sb2">
    <div id="bankList"></div>
-   <div class="amt2"><div><small>Jumlah bayaran</small><b id="trAmt"></b></div><button type="button" class="cpy" onclick="trCopy($('trAmtRaw').value,'Jumlah disalin')">Salin jumlah</button><input type="hidden" id="trAmtRaw"></div>
    <div class="warn2"><b>Penting:</b> pastikan nama penerima ialah <b>MKM Ticketing Travel &amp; Tours Sdn Bhd</b>. Bayaran hanya dikira sah selepas resit dimuat naik dan disahkan oleh MKM.</div>
   </div></div>
   <div class="stp"><div class="sh2"><span class="k">2</span><b>Muat naik resit pindahan</b></div><div class="sb2">
-   <div class="rlogin hide" id="trPhoneWrap"><div class="f"><label for="trPhone">No. telefon yang didaftarkan <i class="req">*</i></label><input class="in" id="trPhone" type="tel" inputmode="tel" placeholder="012 345 6789"><div class="hint">Untuk mengesahkan pendaftaran ini milik anda.</div></div></div>
+   <div class="f"><label for="trAmtIn">Jumlah yang ditransfer kali ini (RM) <i class="req">*</i></label><input class="in" id="trAmtIn" type="number" inputmode="decimal" min="1" step="0.01" placeholder="0.00"><div class="hint" id="trAmtHint">Boleh bayar penuh atau sebahagian. Baki boleh dijelaskan kemudian melalui pautan yang sama.</div></div>
    <div class="f"><label for="trDate">Tarikh pindahan <i class="req">*</i></label><input class="in" id="trDate" type="date"></div>
    <div class="f"><span class="lbl">Resit / tangkap layar pindahan <i class="req">*</i></span>
     <div class="rupload" id="trBox"><div class="pv" id="trPv"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></div>
@@ -307,6 +315,7 @@ textarea.in{height:auto;padding:11px 13px;resize:vertical;line-height:1.5}
    <button class="btn2" type="button" id="trSend" onclick="trHantar()">Hantar resit</button>
    <button class="later" type="button" onclick="trLater()">Saya akan hantar resit kemudian</button>
   </div></div>
+ </div>
  </div>
 </section>
 </div>
@@ -629,6 +638,21 @@ checkReturn();
 .bank .bi small{display:block;color:var(--mute);font-size:12px}
 .bank:has(input:checked){border-color:var(--navy);background:#F1F3FB;box-shadow:inset 3px 0 0 var(--navy)}
 .cpy{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:6px;padding:7px 12px;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.bal{background:var(--navy);color:#fff;border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.bal .bg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bal .bg div{min-width:0}
+.bal small{display:block;color:#C3CAF5;font-size:11.5px;line-height:1.3}
+.bal b{display:block;font-size:17px;margin-top:2px;white-space:nowrap}
+.bal .big b{font-size:21px;color:#FFD86B}
+.bal .bar{height:8px;background:rgba(255,255,255,.18);border-radius:99px;margin:12px 0 6px;overflow:hidden}
+.bal .bar i{display:block;height:100%;background:#4CD38A;border-radius:99px}
+.bal .bar i.t{background:#FFD86B}
+.bal .st{font-size:12.5px;color:#DDE2FF}
+.bal .lst{margin-top:10px;border-top:1px solid rgba(255,255,255,.18);padding-top:8px;font-size:12.5px}
+.bal .lst div{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.bal .lst .pl{padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700;background:rgba(255,255,255,.18)}
+.bal .lst .pl.ok{background:#4CD38A;color:#0B3A22}.bal .lst .pl.no{background:#FF8A8A;color:#5A0E0E}
+@media (max-width:560px){.bal .bg{grid-template-columns:1fr 1fr}}
 .amt2{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--navy);color:#fff;border-radius:8px;padding:12px 14px;margin-top:12px}
 .amt2 b{font-size:22px}
 .amt2 small{display:block;color:#C3CAF5;font-size:12px}
@@ -662,12 +686,12 @@ const TRS = { ref: "", file: null, pdf: false, needPhone: false };
 /* Salinan resit ke Google Drive MKM (Apps Script "Resit Badal Haji MKM"); kosongkan RESIT_DRIVE_URL untuk matikan */
 const RESIT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbwtAUcORaK9WM8M2HcOrs8GOaVfw72Z3AtKDG1YGVAHPoK_2SCnEkUD5MONV2p4YVq4iw/exec";
 const RESIT_DRIVE_KEY = "bh-resit-2026";
-function trDrive(bank, tel){
+function trDrive(bank, tel, amt){
   if(!RESIT_DRIVE_URL || !TRS.file) return;
   try{
     const fr = new FileReader();
     fr.onload = () => {
-      const body = JSON.stringify({ k: RESIT_DRIVE_KEY, ref: TRS.ref, nama: val("nama"), telefon: tel, bank: bank.bank, tarikh: $("trDate").value, nota: val("trNota"), musim: (window.CONF && CONF.musim) || "", mime: TRS.pdf ? "application/pdf" : "image/jpeg", data: String(fr.result).split(",")[1] });
+      const body = JSON.stringify({ k: RESIT_DRIVE_KEY, ref: TRS.ref, nama: val("nama"), telefon: tel, bank: bank.bank, tarikh: $("trDate").value, nota: "RM " + (amt || 0).toLocaleString("en-MY") + (val("trNota") ? " | " + val("trNota") : ""), musim: (window.CONF && CONF.musim) || "", mime: TRS.pdf ? "application/pdf" : "image/jpeg", data: String(fr.result).split(",")[1] });
       fetch(RESIT_DRIVE_URL, { method: "POST", body, headers: { "Content-Type": "text/plain;charset=utf-8" }, keepalive: true }).catch(() => {});
     };
     fr.readAsDataURL(TRS.file);
@@ -678,18 +702,53 @@ const trSb = (!DEMO && window.supabase && TR_SB_URL) ? window.supabase.createCli
 async function trCopy(t, msg){ try{ await navigator.clipboard.writeText(t); trToast(msg || "Disalin"); }catch(e){ prompt("Salin:", t); } }
 function trToast(t){ let e = $("trToast"); if(!e){ e = document.createElement("div"); e.id = "trToast"; e.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1A1F3C;color:#fff;padding:10px 18px;border-radius:10px;font-weight:600;font-size:13.5px;z-index:99;transition:opacity .3s"; document.body.appendChild(e); } e.textContent = t; e.style.opacity = 1; clearTimeout(trToast.h); trToast.h = setTimeout(() => e.style.opacity = 0, 2200); }
 
+let TRB = null; /* status bayaran semasa: {harga, dibayar, menunggu, baki, penuh, portal, senarai} */
+function trRenderBal(b){
+  TRB = b;
+  const pct = Math.min(100, Math.round((Number(b.dibayar) || 0) / (Number(b.harga) || 1) * 100));
+  const pctT = Math.min(100 - pct, Math.round((Number(b.menunggu) || 0) / (Number(b.harga) || 1) * 100));
+  const L = (b.senarai || []);
+  $("trBal").innerHTML = `<div class="bg"><div><small>Harga badal haji</small><b>${rm(b.harga)}</b></div><div><small>Telah disahkan</small><b>${rm(b.dibayar)}</b></div><div><small>Menunggu semakan</small><b>${rm(b.menunggu)}</b></div><div class="big"><small>Baki perlu dibayar</small><b>${rm(b.baki)}</b></div></div>
+    <div class="bar"><i style="width:${pct}%"></i>${pctT?`<i class="t" style="width:${pctT}%;margin-top:-8px;margin-left:${pct}%"></i>`:""}</div>
+    <div class="st">${b.penuh ? "Bayaran penuh telah disahkan." : (Number(b.dibayar)||0) > 0 ? "Bayaran sebahagian diterima. Sila jelaskan baki untuk melengkapkan pendaftaran." : (Number(b.menunggu)||0) > 0 ? "Resit anda sedang disemak oleh MKM." : "Belum ada bayaran direkodkan."}</div>
+    ${L.length ? `<div class="lst">${L.map(x => `<div><span>${esc(x.tarikh ? new Date(x.tarikh).toLocaleDateString("ms-MY",{day:"numeric",month:"short",year:"numeric"}) : "")} ${esc(x.bank||"")}</span><span>${rm(x.amaun)} <span class="pl ${x.status==="Disahkan"?"ok":x.status==="Bermasalah"?"no":""}">${esc(x.status)}</span></span></div>${x.catatan?`<div style="color:#FFB4B4;font-size:12px">Catatan MKM: ${esc(x.catatan)}</div>`:""}`).join("")}</div>` : ""}`;
+  const baki = Number(b.baki) || 0;
+  $("trAmtIn").value = baki > 0 ? String(Math.round(baki * 100) / 100) : "";
+  $("trAmtIn").max = String(Math.round(baki * 100) / 100);
+  $("trAmtHint").textContent = baki > 0 ? `Baki ${rm(baki)}. Boleh bayar penuh atau sebahagian; baki boleh dijelaskan kemudian melalui pautan yang sama.` : "Tiada baki.";
+}
 function showTransfer(ref, opts = {}){
   TRS.ref = ref; TRS.needPhone = !!opts.needPhone;
   ["form","ok","payres","redirecting","demopay"].forEach(x => $(x) && $(x).classList.add("hide"));
   if($("navbar")) $("navbar").classList.add("hide");
   $("trRef").textContent = ref;
-  const amt = rm(CONF.harga); $("trAmt").textContent = amt; $("trAmtRaw").value = String(CONF.harga).replace(/[^\d.]/g, "");
   $("bankList").innerHTML = TR_BANKS.map((b, i) => `<label class="bank"><input type="radio" name="trBank" value="${b.id}" ${i===0?"checked":""}><span class="bi"><b>${esc(b.bank)}</b><span class="no">${esc(b.no)}</span><small>${esc(b.nama)}</small></span><button type="button" class="cpy" onclick="event.preventDefault();trCopy('${b.no}','No. akaun disalin')">Salin no. akaun</button></label>`).join("");
-  $("trPhoneWrap").classList.toggle("hide", !TRS.needPhone);
   if(!$("trDate").value) $("trDate").value = new Date().toLocaleDateString("en-CA");
+  if(TRS.needPhone && !TRB){ $("trGate").classList.remove("hide"); $("trSteps").classList.add("hide"); }
+  else{
+    $("trGate").classList.add("hide"); $("trSteps").classList.remove("hide");
+    if(!TRB) trRenderBal({ harga: CONF.harga, dibayar: 0, menunggu: 0, baki: CONF.harga, penuh: false, senarai: [] });
+  }
   $("transfer").classList.remove("hide");
   try{ localStorage.setItem("bh_last_ref", ref); }catch(e){}
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+async function trSemak(){
+  const e = $("trGateErr"); e.textContent = ""; e.classList.remove("show");
+  const tel = val("trPhone");
+  if(!phoneOk(tel)){ e.textContent = "Sila isi no. telefon yang didaftarkan."; e.classList.add("show"); return; }
+  const b = $("trSemakBtn"); b.disabled = true; b.innerHTML = '<span class="spin"></span>Menyemak...';
+  try{
+    let s;
+    if(DEMO){ await new Promise(r => setTimeout(r, 600)); s = { ok: true, harga: CONF.harga, dibayar: 5000, menunggu: 0, baki: CONF.harga - 5000, penuh: false, portal: "", senarai: [{ amaun: 5000, tarikh: new Date().toISOString(), bank: "CIMB Bank", status: "Disahkan" }] }; }
+    else{ const r = await trSb.rpc("bh_status_bayaran", { p_ref: TRS.ref, p_telefon: tel }); if(r.error) throw new Error(r.error.message); s = r.data; }
+    if(!s || !s.ok) throw new Error((s && s.error) || "Tidak dapat menyemak");
+    TRS.tel = tel;
+    if(s.penuh){ showResitOk(TRS.ref, s); return; }
+    trRenderBal(s);
+    $("trGate").classList.add("hide"); $("trSteps").classList.remove("hide");
+  }catch(err){ e.textContent = err.message || String(err); e.classList.add("show"); }
+  b.disabled = false; b.textContent = "Semak status bayaran";
 }
 function trShrink(file, max){
   return new Promise(res => { const img = new Image(), url = URL.createObjectURL(file);
@@ -712,36 +771,52 @@ async function trPick(inp){
 function trError(m){ const e = $("trErr"); e.textContent = m; e.classList.toggle("show", !!m); }
 async function trHantar(){
   trError("");
-  const tel = TRS.needPhone ? val("trPhone") : val("telefon");
+  const tel = TRS.needPhone ? (TRS.tel || val("trPhone")) : val("telefon");
   if(TRS.needPhone && !phoneOk(tel)){ trError("Sila isi no. telefon yang didaftarkan."); return; }
+  const amt = Math.round((parseFloat(val("trAmtIn")) || 0) * 100) / 100;
+  const baki = TRB ? Number(TRB.baki) || 0 : Number(CONF.harga) || 0;
+  if(!(amt > 0)){ trError("Sila isi jumlah yang ditransfer."); return; }
+  if(amt > baki + 0.01){ trError("Jumlah melebihi baki " + rm(baki) + ". Sila semak semula."); return; }
   if(!$("trDate").value){ trError("Sila isi tarikh pindahan."); return; }
   if(!TRS.file){ trError("Sila pilih fail resit."); return; }
   const bankId = (document.querySelector('input[name=trBank]:checked') || {}).value, bank = TR_BANKS.find(b => b.id === bankId) || TR_BANKS[0];
   const btn = $("trSend"); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Memuat naik resit...';
   try{
-    if(DEMO){ await new Promise(r => setTimeout(r, 1000)); showResitOk(TRS.ref); return; }
+    if(DEMO){ await new Promise(r => setTimeout(r, 1000)); showResitOk(TRS.ref, { harga: baki + (TRB ? Number(TRB.dibayar)||0 : 0), dibayar: TRB ? Number(TRB.dibayar)||0 : 0, menunggu: amt, baki: baki, penuh: false }); return; }
     const path = `resit/${TRS.ref}/${Date.now()}.${TRS.pdf ? "pdf" : "jpg"}`;
     const up = await trSb.storage.from("bh-resit").upload(path, TRS.file, { contentType: TRS.pdf ? "application/pdf" : "image/jpeg", upsert: false });
     if(up.error) throw new Error(/bucket|row-level|security|not found/i.test(up.error.message) ? "Storan resit belum disediakan. Sila hubungi MKM." : up.error.message);
     btn.innerHTML = '<span class="spin"></span>Menghantar...';
-    const { data, error } = await trSb.rpc("bh_hantar_resit", { p_ref: TRS.ref, p_telefon: tel, p_path: path, p_bank: bank.bank, p_tarikh: $("trDate").value, p_nota: val("trNota") });
+    const { data, error } = await trSb.rpc("bh_hantar_resit", { p_ref: TRS.ref, p_telefon: tel, p_path: path, p_bank: bank.bank, p_tarikh: $("trDate").value, p_nota: val("trNota"), p_amaun: amt });
     if(error) throw new Error(error.message);
     if(!data || !data.ok) throw new Error((data && data.error) || "Resit tidak dapat dihantar");
-    trDrive(bank, tel);
-    showResitOk(TRS.ref);
+    trDrive(bank, tel, amt);
+    showResitOk(TRS.ref, data);
   }catch(e){
     trError("Maaf, resit tidak dapat dihantar (" + (e.message || e) + "). Sila cuba lagi atau hantar resit melalui WhatsApp MKM bersama no. rujukan " + TRS.ref + ".");
     btn.disabled = false; btn.textContent = "Hantar resit";
   }
 }
-function showResitOk(ref){
+function showResitOk(ref, b){
+  b = b || {};
   $("transfer").classList.add("hide");
   const box = $("payres"); box.classList.remove("hide"); box.dataset.state = "Berjaya";
   $("prRef").textContent = ref;
-  $("prIcon").innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-  $("prTitle").textContent = "Resit diterima";
-  $("prMsg").textContent = "Terima kasih. Pihak MKM akan menyemak bayaran tuan/puan dalam masa 1 hari bekerja. Pengesahan dan maklumat ustaz pembadal akan dihantar melalui WhatsApp.";
-  $("prAct").innerHTML = "";
+  const link = location.origin + location.pathname + "?resit=" + encodeURIComponent(ref);
+  const baki = Number(b.baki) || 0, tunggu = Number(b.menunggu) || 0, sah = Number(b.dibayar) || 0;
+  const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mute)">${k}</span><b>${v}</b></div>`;
+  const ringkas = `<div style="text-align:left;max-width:380px;margin:12px auto 0;font-size:14px">${row("Harga badal haji", rm(b.harga || CONF.harga))}${row("Telah disahkan MKM", rm(sah))}${tunggu?row("Menunggu semakan", rm(tunggu)):""}${row("Baki", rm(baki))}</div>`;
+  if(b.penuh){
+    $("prIcon").innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    $("prTitle").textContent = "Bayaran penuh disahkan";
+    $("prMsg").innerHTML = `Alhamdulillah, bayaran badal haji bagi pendaftaran ini telah lengkap dan disahkan oleh Jabatan Haji MKM.${b.pengendali?`<br><br>Pengendali: <b>${esc(b.pengendali)}</b>`:"<br><br>Maklumat ustaz pembadal akan dihantar melalui WhatsApp setelah dilantik."}${ringkas}`;
+    $("prAct").innerHTML = b.portal ? `<a class="btn2" href="${esc(b.portal)}" style="text-decoration:none;display:inline-block">Buka portal penjejakan</a><button class="btn2 ghost2" type="button" onclick="trCopy('${esc(b.portal)}','Pautan portal disalin')">Salin pautan portal</button>` : "";
+  } else {
+    $("prIcon").innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    $("prTitle").textContent = "Resit diterima";
+    $("prMsg").innerHTML = `Terima kasih. Pihak MKM akan menyemak bayaran tuan/puan dalam masa 1 hari bekerja dan memaklumkan melalui WhatsApp.${ringkas}${baki > 0 ? `<br>Untuk bayaran seterusnya, buka semula pautan ini:<br><a href="${esc(link)}" style="color:var(--blue);font-weight:700;word-break:break-all">${esc(link)}</a><br><small style="color:var(--mute)">Pautan portal penjejakan akan diberikan secara automatik setelah bayaran penuh disahkan.</small>` : `<br>Setelah resit disahkan, pautan portal penjejakan akan dipaparkan di pautan ini:<br><a href="${esc(link)}" style="color:var(--blue);font-weight:700;word-break:break-all">${esc(link)}</a>`}`;
+    $("prAct").innerHTML = `<button class="btn2 ghost2" type="button" onclick="trCopy('${esc(link)}','Pautan disalin')">Salin pautan</button>`;
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function trLater(){
@@ -751,7 +826,7 @@ function trLater(){
   $("prRef").textContent = TRS.ref;
   $("prIcon").innerHTML = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
   $("prTitle").textContent = "Menunggu resit bayaran";
-  $("prMsg").innerHTML = `Pendaftaran disimpan. Buat pindahan ke akaun MKM dan hantar resit di pautan ini:<br><a href="${esc(link)}" style="color:var(--blue);font-weight:700;word-break:break-all">${esc(link)}</a><br><br>Pendaftaran hanya lengkap selepas resit diterima dan disahkan.`;
+  $("prMsg").innerHTML = `Pendaftaran disimpan. Buat pindahan ke akaun MKM (penuh atau beransur) dan hantar resit di pautan ini:<br><a href="${esc(link)}" style="color:var(--blue);font-weight:700;word-break:break-all">${esc(link)}</a><br><br>Pendaftaran hanya lengkap selepas resit diterima dan disahkan.`;
   $("prAct").innerHTML = `<button class="btn2 ghost2" type="button" onclick="trCopy('${esc(link)}','Pautan disalin')">Salin pautan</button><button class="btn2" type="button" onclick="showTransfer('${esc(TRS.ref)}',{needPhone:${TRS.needPhone}})">Hantar resit sekarang</button>`;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }

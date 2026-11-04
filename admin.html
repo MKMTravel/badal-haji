@@ -240,6 +240,14 @@ table.t{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--ca
 .qc small{display:block;color:var(--mute);font-size:12px}
 .qc .amt{font-size:18px;font-weight:800;color:var(--navy)}
 .qc .act{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.qc.pay2{grid-template-columns:170px 1fr}
+.paysum .pg{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.paysum .pg small{display:block;color:var(--mute);font-size:11.5px}.paysum .pg b{font-size:16px;color:var(--navy)}
+.paysum .pbar{height:7px;border-radius:99px;background:#E9ECF8;margin:8px 0 10px;display:flex;overflow:hidden}
+.paysum .pbar i{display:block;height:100%;background:var(--ok)}.paysum .pbar i.t{background:var(--warn)}
+table.t.pay{font-size:13px}table.t.pay td,table.t.pay th{padding:8px 8px}table.t.pay small{display:block;color:var(--mute);font-size:11.5px}
+.fg{margin-bottom:10px}.fg label{display:block;font-size:12.5px;font-weight:700;color:var(--mute);margin-bottom:4px}
+@media (max-width:900px){.qc.pay2{grid-template-columns:1fr}}
 .match{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--ok)}
 .match.no{color:var(--bad)}
 
@@ -456,6 +464,15 @@ table.t{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--ca
  table.t td:nth-child(3){grid-column:1/-1;overflow-x:auto}
  table.t td:nth-child(4){grid-column:1/-1;font-size:13px}
  table.t td:nth-child(4)::before{content:"Pengendali: ";color:var(--mute)}
+ /* jadual rekod bayaran */
+ table.t.pay tr{grid-template-columns:1fr auto;gap:4px 10px;padding:10px 0}
+ table.t.pay td:nth-child(1){grid-column:1;grid-row:1}
+ table.t.pay td:nth-child(3){grid-column:2;grid-row:1;text-align:right;font-size:16px;overflow:visible}
+ table.t.pay td:nth-child(2){grid-column:1;grid-row:2;font-size:12.5px;color:var(--mute)}
+ table.t.pay td:nth-child(4){grid-column:2;grid-row:2;text-align:right}
+ table.t.pay td:nth-child(4)::before{content:none}
+ table.t.pay td:nth-child(5){grid-column:1/-1;grid-row:3;margin-top:6px}
+ table.t.pay td:nth-child(5) .ibs{max-width:none;justify-content:flex-start}
  .ibs{flex-wrap:wrap;justify-content:flex-end;max-width:84px}
  /* borang modal jadi helaian penuh dari bawah */
  .modal{padding:0;place-items:end stretch}
@@ -560,7 +577,8 @@ async function start(){
   if(SBC && !start.ch){
     let h = null; const kick = () => { clearTimeout(h); h = setTimeout(() => load({silent:true}), 800); };
     start.ch = SBC.channel("bh-admin").on("postgres_changes", { event: "*", schema: "public", table: "bh_pendaftaran" }, kick)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "bh_checkin" }, kick).subscribe();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "bh_checkin" }, kick)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bh_bayaran" }, kick).subscribe();
   }
   if(DEMO) setTimeout(() => demoNewPay(), 15000);
 }
@@ -590,12 +608,23 @@ async function load(o = {}){
 function stage(p){
   const sb = p.status_bayaran || "Belum Bayar";
   if(/^Semak/.test(sb)) return { k: "masalah", t: "Amaun tidak sepadan", c: "warn" };
-  if(sb !== "Berjaya") return { k: "bayar", t: sb === "Gagal" ? "Bayaran gagal" : sb === "Dibatalkan" ? "Bayaran dibatalkan" : "Belum bayar", c: "grey" };
   if(p.ustaz_id) return { k: "ok", t: "Pengendali ditetapkan", c: "ok" };
-  if(p.semakan === "Bermasalah") return { k: "masalah", t: "Bayaran bermasalah", c: "warn" };
-  if(p.semakan !== "Disahkan") return { k: "sahkan", t: "Perlu semak bayaran", c: "bad" };
-  return { k: "ustaz", t: "Perlu tetapkan pengendali", c: "bad" };
+  if(adaTunggu(p)) return { k: "sahkan", t: "Perlu semak bayaran", c: "bad" };
+  if(sb === "Berjaya"){
+    if(p.semakan === "Bermasalah") return { k: "masalah", t: "Bayaran bermasalah", c: "warn" };
+    if(p.semakan !== "Disahkan") return { k: "sahkan", t: "Perlu semak bayaran", c: "bad" };
+    return { k: "ustaz", t: "Perlu tetapkan pengendali", c: "bad" };
+  }
+  if(sb === "Sebahagian") return { k: "ansuran", t: "Ansuran, baki " + rm(bakiOf(p)), c: "warn" };
+  if((p.bayaran || []).some(b => b.status === "Bermasalah")) return { k: "masalah", t: "Bayaran bermasalah", c: "warn" };
+  return { k: "bayar", t: sb === "Gagal" ? "Bayaran gagal" : sb === "Dibatalkan" ? "Bayaran dibatalkan" : "Belum bayar", c: "grey" };
 }
+/* rekod bayaran (bh_bayaran) */
+const sumB = (p, st) => (p.bayaran || []).filter(b => b.status === st).reduce((a, b) => a + (Number(b.amaun) || 0), 0);
+const sahOf = p => p.bayaran ? sumB(p, "Disahkan") : (Number(p.amaun) || 0);
+const tungguOf = p => sumB(p, "Menunggu");
+const bakiOf = p => Math.max(0, (Number(p.harga) || 0) - sahOf(p));
+const adaTunggu = p => (p.bayaran || []).some(b => b.status === "Menunggu");
 function gelaran(p){
   if(p.d_status !== "Meninggal dunia") return p.d_nama;
   const f = p.d_jantina ? p.d_jantina === "Perempuan" : /\bbinti\b|\bbt\.?\b/i.test(p.d_nama);
@@ -624,7 +653,8 @@ let SEEN = null, NOTIFIED = new Set(), FIRST = true;
 function events(){
   const ev = [];
   S.pendaftar.forEach(p => {
-    if(p.status_bayaran === "Berjaya") ev.push({ k: "pay:" + p.ref, t: p.tarikh_bayar || p.tarikh, type: "pay", ref: p.ref, title: `Bayaran diterima ${rm(p.amaun || p.harga)}`, sub: `${p.ref} | ${p.nama}` });
+    if(p.bayaran && p.bayaran.length) p.bayaran.filter(b => b.sumber !== "admin").forEach(b => ev.push({ k: "pay:" + b.id, t: b.created_at, type: "pay", ref: p.ref, title: `Resit diterima ${rm(b.amaun)}${b.status==="Menunggu"?" (perlu semak)":""}`, sub: `${p.ref} | ${p.nama}` }));
+    else if(p.status_bayaran === "Berjaya") ev.push({ k: "pay:" + p.ref, t: p.tarikh_bayar || p.tarikh, type: "pay", ref: p.ref, title: `Bayaran diterima ${rm(p.amaun || p.harga)}`, sub: `${p.ref} | ${p.nama}` });
     ev.push({ k: "reg:" + p.ref, t: p.tarikh, type: "reg", ref: p.ref, title: "Pendaftaran baru", sub: `${p.ref} | ${gelaran(p)}` });
   });
   return ev.sort((a, b) => String(b.t).localeCompare(String(a.t)));
@@ -714,7 +744,7 @@ function render(){
   renderNav();
   const T = {
     ringkasan: ["Ringkasan", "Gambaran keseluruhan badal haji musim ini."],
-    pembayaran: ["Pembayaran", "Semak resit pindahan bank yang dihantar pendaftar dengan penyata bank Jabatan Haji. Bayaran yang disahkan dipindah ke Agihan pengendali."],
+    pembayaran: ["Pembayaran", "Semak setiap resit pindahan bank dengan penyata bank Jabatan Haji. Bayaran boleh beransur; kes dipindah ke Agihan pengendali bila bayaran penuh disahkan."],
     agihan: ["Agihan pengendali", "Tugaskan pengendali kepada kes yang bayarannya telah disahkan. Kes yang selesai diagih akan hilang dari senarai."],
     pendaftaran: ["Pendaftaran", "Semua pendaftar yang telah membayar, perjalanan setiap kes, portal penjejakan dan WhatsApp."],
     abandon: ["Abandon", "Pendaftar yang belum melengkapkan bayaran. Hantar peringatan dan pautan bayaran baharu."],
@@ -729,8 +759,7 @@ function render(){
 /* ---------- Ringkasan ---------- */
 function vRingkasan(){
   const P = inMusim();
-  const verified = P.filter(p => p.status_bayaran === "Berjaya" && (p.semakan === "Disahkan" || p.ustaz_id));
-  const kutipan = verified.reduce((a, p) => a + (p.amaun || p.harga), 0);
+  const kutipan = P.reduce((a, p) => a + sahOf(p), 0);
   const aktif = S.pembadal.filter(b => b.status === "Aktif");
   const ab = abandonList().filter(p => !p.arkib);
   const flow = [
@@ -741,14 +770,14 @@ function vRingkasan(){
   ];
   const ev = events().filter(e => String(S.pendaftar.find(p => p.ref === e.ref)?.musim) === String(S.musim)).slice(0, 8);
   const todo = [
-    ...by("sahkan").map(p => ({ t: `${p.ref}: semak bayaran ${rm(p.amaun)}`, s: `${p.nama} | dibayar ${ago(p.tarikh_bayar)}`, a: `S.payTab='semak';go('pembayaran')`, b: "Semak" })),
+    ...by("sahkan").map(p => ({ t: `${p.ref}: semak resit ${rm(tungguOf(p) || p.amaun)}`, s: `${p.nama} | baki selepas ini ${rm(Math.max(0, bakiOf(p) - tungguOf(p)))}`, a: `S.payTab='semak';go('pembayaran')`, b: "Semak" })),
     ...by("masalah").map(p => ({ w: 1, t: `${p.ref}: ${stage(p).t.toLowerCase()}`, s: p.catatan_semakan || "Perlu tindakan lanjut", a: `openDrawer('${esc(p.ref)}')`, b: "Lihat" })),
     ...by("ustaz").map(p => ({ t: `${p.ref}: agih pengendali`, s: gelaran(p), a: `go('agihan')`, b: "Agih" })),
     ...S.pembadal.filter(b => kesFor(b) && !permitOk(b)).map(b => ({ w: 1, t: `${b.nama}: permit belum disahkan`, s: `Ditugaskan ke ${kesFor(b).ref}`, a: `openPbProfile('${esc(b.id)}')`, b: "Profil" }))
   ];
   return `<div class="stats">
     <div class="stat"><span>Pendaftar berbayar</span><b>${paidList().length}</b><small>musim ${esc(S.musim)}</small></div>
-    <div class="stat"><span>Kutipan disahkan</span><b style="font-size:21px">${rm(kutipan)}</b><small>selepas semakan admin</small></div>
+    <div class="stat"><span>Kutipan disahkan</span><b style="font-size:21px">${rm(kutipan)}</b><small>${by("ansuran").length} kes ansuran, baki ${rm(P.reduce((a, p) => a + (p.status_bayaran==="Sebahagian"?bakiOf(p):0), 0))}</small></div>
     <div class="stat ${by("sahkan").length?"hl":""}"><span>Perlu semak bayaran</span><b>${by("sahkan").length}</b><small>bayaran baru masuk</small></div>
     <div class="stat ${by("ustaz").length?"hl":""}"><span>Perlu agih pengendali</span><b>${by("ustaz").length}</b><small>bayaran disahkan</small></div>
     <div class="stat"><span>Abandon</span><b>${ab.length}</b><small>potensi ${rm(ab.reduce((a, p) => a + p.harga, 0))}</small></div>
@@ -776,14 +805,14 @@ function tracker(p){
   const { done, cur } = trkState(p), s = stage(p);
   const short = ["Dibayar","Disahkan","Pengendali","Pelaksanaan","Sijil"];
   const cells = short.map((t, i) => `<div class="tc ${done[i]?"on":i===cur?"cur":""} ${i&&done[i]?"lon":""}"><i></i><span>${t}</span></div>`).join("");
-  const cls = s.k === "ok" ? "g" : s.k === "masalah" ? "w" : "r";
+  const cls = s.k === "ok" ? "g" : (s.k === "masalah" || s.k === "ansuran") ? "w" : "r";
   const label = s.k === "ok" ? ((p.ci_n||0) >= (S.rukun_total||14) ? "Selesai: semua rukun dilaksanakan" : p.ci_n ? `Pelaksanaan: ${p.ci_n}/${S.rukun_total} rukun${p.ci_flag?`, ${p.ci_flag} perlu semakan lokasi`:""}` : "Seterusnya: pelaksanaan pada musim haji") : "Seterusnya: " + s.t.toLowerCase();
   return `<div class="trk2">${cells}</div><div class="trkl ${cls}">${esc(label)}</div>`;
 }
 function portalLink(p){ return (S.portal_url || "") ? `${S.portal_url}${S.portal_url.includes("?")?"&":"?"}ref=${encodeURIComponent(p.ref)}&t=${encodeURIComponent(p.token||"")}` : ""; }
 function vPendaftaran(){
   const P = paidList();
-  const F = [["semua","Semua"],["sahkan","Perlu semak bayaran"],["masalah","Bermasalah"],["ustaz","Perlu agih"],["ok","Ditugaskan"]];
+  const F = [["semua","Semua"],["sahkan","Perlu semak bayaran"],["ansuran","Ansuran"],["masalah","Bermasalah"],["ustaz","Perlu agih"],["ok","Ditugaskan"]];
   const count = k => k === "semua" ? P.length : P.filter(p => stage(p).k === k).length;
   return `<div class="bar"><input class="in" placeholder="Cari rujukan, nama, telefon..." value="${esc(S.q)}" oninput="S.q=this.value;$('tbl').innerHTML=tableHtml()">
     <div class="chips">${F.map(([k,t]) => `<button class="${S.filter===k?"on":""}" onclick="S.filter='${k}';render()">${t}<span class="n">${count(k)}</span></button>`).join("")}</div></div>
@@ -807,7 +836,7 @@ function tableHtml(){
   if(!list.length) return `<div class="empty">Tiada pendaftar untuk paparan ini.</div>`;
   return `<table class="t"><thead><tr><th>Rujukan</th><th>Dibadalkan</th><th>Perjalanan kes</th><th>Pengendali</th><th style="text-align:right">Tindakan</th></tr></thead><tbody>
   ${list.map(p => { const pl = portalLink(p); return `<tr>
-    <td class="rw" onclick="openDrawer('${esc(p.ref)}')"><span class="ref">${esc(p.ref)}</span>${p.ujian?' <span class="pill warn">UJIAN</span>':""}<small>Bayar ${dt(p.tarikh_bayar)}</small><small>${rm(p.amaun||p.harga)}</small></td>
+    <td class="rw" onclick="openDrawer('${esc(p.ref)}')"><span class="ref">${esc(p.ref)}</span>${p.ujian?' <span class="pill warn">UJIAN</span>':""}<small>${p.status_bayaran==="Berjaya"?"Penuh "+rm(sahOf(p)):"Dibayar "+rm(sahOf(p))+" / "+rm(p.harga)}</small><small>${p.status_bayaran==="Berjaya"?"Bayar "+dt(p.tarikh_bayar):"Baki "+rm(bakiOf(p))}</small></td>
     <td class="rw" onclick="openDrawer('${esc(p.ref)}')"><b style="font-weight:700">${esc(gelaran(p))}</b><small>oleh ${esc(p.nama)} (${esc(p.hubungan||"-")})</small><small>${esc(p.telefon)}</small></td>
     <td>${tracker(p)}</td>
     <td>${p.ustaz?esc(p.ustaz):'<span style="color:var(--mute)">Belum ditugaskan</span>'}</td>
@@ -824,11 +853,13 @@ function waTemplates(p, extra = {}){
   const u = S.pembadal.find(b => b.id === p.ustaz_id);
   const pl = portalLink(p) || "(pautan portal)";
   const T = [];
-  if(p.status_bayaran === "Berjaya" && p.semakan !== "Disahkan" && !p.ustaz_id) T.push(["resit", "Resit diterima", `Assalamualaikum ${shortName(p.nama)}.\n\nTerima kasih. Resit bayaran badal haji bagi ${gelaran(p)} (${p.ref}) telah kami terima dan sedang disemak oleh Jabatan Haji MKM.\n\nPengesahan akan dimaklumkan dalam masa 1 hari bekerja, insya-Allah.`]);
-  if(p.status_bayaran === "Berjaya" && (p.semakan === "Disahkan" || p.ustaz_id)) T.push(["terima", "Bayaran disahkan", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, bayaran ${rm(p.amaun||p.harga)} bagi badal haji ${gelaran(p)} telah diterima dan disahkan oleh Jabatan Haji MKM.\nNo. rujukan: ${p.ref}\n\nAkad badal haji tuan/puan telah disimpan. Langkah seterusnya, kami akan melantik ustaz pembadal dan memaklumkan nama beliau berserta pautan portal penjejakan.\n\nJazakallahu khairan atas kepercayaan kepada MKM.`]);
+  const sah = sahOf(p), baki = bakiOf(p), tunggu = tungguOf(p);
+  if(adaTunggu(p)) T.push(["resit", "Resit diterima", `Assalamualaikum ${shortName(p.nama)}.\n\nTerima kasih. Resit bayaran ${rm(tunggu)} bagi badal haji ${gelaran(p)} (${p.ref}) telah kami terima dan sedang disemak oleh Jabatan Haji MKM.\n\nPengesahan akan dimaklumkan dalam masa 1 hari bekerja, insya-Allah.`]);
+  if(p.status_bayaran === "Sebahagian") T.push(["ansuran", "Ansuran disahkan", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, bayaran badal haji ${gelaran(p)} (${p.ref}) telah disahkan oleh Jabatan Haji MKM.\n\nHarga badal haji: ${rm(p.harga)}\nJumlah disahkan: ${rm(sah)}\n*Baki: ${rm(baki)}*\n\nUntuk bayaran seterusnya, buat pindahan ke akaun MKM:\n\n${bankText()}\n\nRecipient Reference: ${p.ref}\n\nKemudian muat naik resit di pautan ini (boleh beransur):\n${resitLink(p)}\n\nPautan portal penjejakan akan diberikan secara automatik setelah bayaran penuh disahkan. Terima kasih.`]);
+  if(p.status_bayaran === "Berjaya" && (p.semakan === "Disahkan" || p.ustaz_id)) T.push(["terima", "Bayaran penuh disahkan", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, bayaran penuh ${rm(sah || p.harga)} bagi badal haji ${gelaran(p)} telah diterima dan disahkan oleh Jabatan Haji MKM.\nNo. rujukan: ${p.ref}\n\nAkad badal haji tuan/puan telah disimpan. Pautan portal penjejakan:\n${pl}\n\nLangkah seterusnya, kami akan melantik ustaz pembadal dan memaklumkan nama beliau melalui portal dan WhatsApp.\n\nJazakallahu khairan atas kepercayaan kepada MKM.`]);
   if(u) T.unshift(["pengendali", "Maklumat pengendali", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, badal haji ${gelaran(p)} (${p.ref}) akan dilaksanakan oleh:\n*${u.nama}*\n${[u.haji?"Haji fardu "+u.haji:"", u.kelulusan||""].filter(Boolean).join(", ")}\n\nProfil pengendali dan perjalanan setiap rukun (niat, tawaf, saie, wukuf dan seterusnya) boleh dipantau di portal penjejakan:\n${pl}\n\nSila simpan pautan ini. Kami akan kemas kini setiap langkah sepanjang musim haji, insya-Allah.`]);
   if(p.status_bayaran === "Berjaya") T.push(["portal", "Pautan portal", `Assalamualaikum ${shortName(p.nama)}.\n\nIni pautan portal penjejakan badal haji ${gelaran(p)} (${p.ref}):\n${pl}\n\nSila simpan pautan ini untuk memantau perjalanan setiap rukun.`]);
-  if(p.status_bayaran !== "Berjaya") T.push(["bayar", "Peringatan bayaran", `Assalamualaikum ${shortName(p.nama)}.\n\nTerima kasih kerana mendaftar badal haji MKM bagi ${gelaran(p)} (${p.ref}).\n\nPendaftaran tuan/puan belum lengkap kerana resit bayaran belum kami terima. Sila buat pindahan ${rm(p.harga)} ke akaun Jabatan Haji MKM:\n\n${bankText()}\n\nRecipient Reference: ${p.ref}\n\nKemudian muat naik resit di pautan ini:\n${resitLink(p)}\n\nJika ada sebarang pertanyaan, kami sedia membantu.`]);
+  if(p.status_bayaran !== "Berjaya" && p.status_bayaran !== "Sebahagian") T.push(["bayar", "Peringatan bayaran", `Assalamualaikum ${shortName(p.nama)}.\n\nTerima kasih kerana mendaftar badal haji MKM bagi ${gelaran(p)} (${p.ref}).\n\nPendaftaran tuan/puan belum lengkap kerana resit bayaran belum kami terima. Sila buat pindahan ${rm(p.harga)} (boleh beransur) ke akaun Jabatan Haji MKM:\n\n${bankText()}\n\nRecipient Reference: ${p.ref}\n\nKemudian muat naik resit di pautan ini:\n${resitLink(p)}\n\nJika ada sebarang pertanyaan, kami sedia membantu.`]);
   T.push(["bebas", "Mesej bebas", `Assalamualaikum ${shortName(p.nama)}.\n\n`]);
   return T;
 }
@@ -836,6 +867,8 @@ function waTemplates(p, extra = {}){
 function defaultTpl(p){
   if(p.ustaz_id) return "pengendali";
   if(p.status_bayaran === "Berjaya") return p.semakan === "Disahkan" ? "terima" : "resit";
+  if(adaTunggu(p)) return "resit";
+  if(p.status_bayaran === "Sebahagian") return "ansuran";
   return "bayar";
 }
 function openWa(ref, tpl, extra = {}){
@@ -880,27 +913,125 @@ async function arkib(ref, v){
 }
 
 /* ---------- Pembayaran ---------- */
+const BST = { Menunggu: ["warn","Menunggu semakan"], Disahkan: ["ok","Disahkan"], Bermasalah: ["bad","Bermasalah"] };
+function payRows(p){
+  const B = [...(p.bayaran || [])].sort((a, b) => Number(a.id) - Number(b.id));
+  if(!B.length) return `<div class="empty" style="padding:10px 0">Belum ada rekod bayaran.</div>`;
+  return `<table class="t pay"><thead><tr><th>Tarikh</th><th>Bank</th><th style="text-align:right">Amaun</th><th>Status</th><th style="text-align:right">Tindakan</th></tr></thead><tbody>${B.map(b => { const st = BST[b.status] || ["grey", b.status]; return `<tr>
+    <td>${dt(b.tarikh || b.created_at)}<small>${b.sumber==="admin"?"direkod admin":"dihantar pendaftar"} ${ago(b.created_at)}</small></td>
+    <td>${esc(b.bank || "-")}${b.nota?`<small>${esc(b.nota)}</small>`:""}${b.status==="Bermasalah"&&b.catatan_semakan?`<small style="color:var(--warn)">${esc(b.catatan_semakan)}</small>`:""}</td>
+    <td style="text-align:right"><b>${rm(b.amaun)}</b></td>
+    <td><span class="pill ${st[0]}">${st[1]}</span></td>
+    <td><div class="ibs" style="justify-content:flex-end;flex-wrap:wrap">${b.resit_path?`<button class="ib" title="Lihat resit" onclick="lihatResit('${esc(p.ref)}',false,'${esc(b.resit_path)}')">${SVG.rcpt}</button><button class="ib" title="Muat turun resit" onclick="lihatResit('${esc(p.ref)}',true,'${esc(b.resit_path)}')">${SVG.dl}</button>`:`<span class="pill grey">Tiada resit</span>`}
+      ${b.status==="Menunggu"?`<button class="btn sm red" onclick="sahBayaran(${Number(b.id)},'Bermasalah',this)">Bermasalah</button><button class="btn sm" onclick="sahBayaran(${Number(b.id)},'Disahkan',this)">Sahkan</button>`:b.status==="Bermasalah"?`<button class="btn sm ghost" onclick="sahBayaran(${Number(b.id)},'Disahkan',this)">Sahkan</button>`:""}
+      ${!p.ustaz_id&&b.status!=="Menunggu"?`<button class="ib" title="Padam rekod" onclick="padamBayaran(${Number(b.id)},'${esc(p.ref)}')">&times;</button>`:""}</div></td></tr>`; }).join("")}</tbody></table>`;
+}
+function payPanel(p, o = {}){
+  const sah = sahOf(p), tunggu = tungguOf(p), baki = bakiOf(p), harga = Number(p.harga) || 0;
+  const pct = harga ? Math.min(100, Math.round(sah / harga * 100)) : 0, pctT = harga ? Math.min(100 - pct, Math.round(tunggu / harga * 100)) : 0;
+  const st = p.status_bayaran === "Berjaya" ? ["ok", "Bayaran penuh"] : p.status_bayaran === "Sebahagian" ? ["warn", "Ansuran"] : adaTunggu(p) ? ["bad", "Perlu semak"] : ["grey", "Belum bayar"];
+  return `<div class="paysum"><div class="pg"><div><small>Harga</small><b>${rm(harga)}</b></div><div><small>Disahkan</small><b style="color:var(--ok)">${rm(sah)}</b></div><div><small>Menunggu</small><b style="color:var(--warn)">${rm(tunggu)}</b></div><div><small>Baki</small><b style="color:${baki?"var(--bad)":"var(--ok)"}">${rm(baki)}</b></div><div><span class="pill ${st[0]}">${st[1]}</span></div></div>
+    <div class="pbar"><i style="width:${pct}%"></i><i class="t" style="width:${pctT}%"></i></div></div>
+    ${payRows(p)}
+    <div class="row" style="margin-top:10px;flex-wrap:wrap">${!p.ustaz_id?`<button class="btn sm ghost" onclick="tambahBayaran('${esc(p.ref)}')">+ Rekod bayaran (admin)</button>`:""}${o.drawer?"":`<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button><button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button>`}</div>`;
+}
 function vPembayaran(){
   const P = inMusim();
   const tabs = [
-    ["semak","Perlu disemak", by("sahkan"), true],
+    ["semak","Perlu disemak", P.filter(p => adaTunggu(p) || (p.status_bayaran === "Berjaya" && p.semakan !== "Disahkan" && !p.ustaz_id && !p.bayaran)), true],
+    ["ansuran","Ansuran", P.filter(p => p.status_bayaran === "Sebahagian" && !adaTunggu(p)), false],
     ["masalah","Bermasalah", by("masalah"), true],
-    ["sah","Telah disahkan", P.filter(p => p.status_bayaran === "Berjaya" && (p.semakan === "Disahkan" || p.ustaz_id)), false]
+    ["sah","Bayaran penuh", P.filter(p => p.status_bayaran === "Berjaya" && (p.semakan === "Disahkan" || p.ustaz_id)), false]
   ];
   const cur = tabs.find(t => t[0] === S.payTab) || tabs[0];
   const list = [...cur[2]].sort((a, b) => String(b.tarikh_bayar || b.tarikh).localeCompare(String(a.tarikh_bayar || a.tarikh)));
   let body;
-  if(!list.length) body = `<div class="card"><div class="empty">${{semak:"Tiada bayaran baru untuk disemak. Notifikasi akan muncul bila ada bayaran masuk.",masalah:"Tiada bayaran bermasalah.",sah:"Belum ada bayaran disahkan."}[cur[0]]}</div></div>`;
-  else body = `<div class="qlist">${list.map(p => `<div class="qc" id="q_${esc(p.ref)}">
-    <div><span class="ref">${esc(p.ref)}</span>${p.ujian?' <span class="pill warn">UJIAN</span>':""}<small>${dtt(p.tarikh_bayar)}</small><small>${esc(ago(p.tarikh_bayar))}</small></div>
-    <div>${esc(p.nama)}<small>Untuk ${esc(gelaran(p))}</small>${isTransfer(p)?`<small>Pindahan bank</small>${resitInfo(p)}`:`<small>${esc(p.bank || "-")} | ${esc(p.transaction_id || "-")}</small>`}</div>
-    <div><div class="amt">${rm(p.amaun)}</div>${amtOk(p)?`<span class="match">&#10003; Sepadan dengan harga ${rm(p.harga)}</span>`:`<span class="match no">&#10007; Harga ${rm(p.harga)}, semak semula</span>`}
-      ${p.semakan==="Bermasalah"&&p.catatan_semakan?`<small style="color:var(--warn);margin-top:4px">Catatan: ${esc(p.catatan_semakan)}</small>`:""}${cur[0]==="sah"?`<small>Disahkan ${dtt(p.tarikh_semakan)}</small>`:""}</div>
-    <div class="act">${isTransfer(p)?resitBtn(p):p.resit_url?`<a class="btn sm ghost" href="${esc(p.resit_url)}" target="_blank" rel="noopener">${SVG.rcpt} Resit BCL</a>`:`<button class="btn sm ghost" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>`}${cur[0]==="sah" ? `<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button><button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button>`
-      : `<button class="btn sm red" onclick="verify('${esc(p.ref)}','Bermasalah',this)">Bermasalah</button><button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan</button>`}</div></div>`).join("")}</div>`;
+  if(!list.length) body = `<div class="card"><div class="empty">${{semak:"Tiada resit baru untuk disemak. Notifikasi akan muncul bila ada resit masuk.",ansuran:"Tiada kes ansuran.",masalah:"Tiada bayaran bermasalah.",sah:"Belum ada bayaran penuh disahkan."}[cur[0]]}</div></div>`;
+  else body = `<div class="qlist">${list.map(p => `<div class="qc pay2" id="q_${esc(p.ref)}">
+    <div><span class="ref">${esc(p.ref)}</span>${p.ujian?' <span class="pill warn">UJIAN</span>':""}<small>${esc(p.nama)}</small><small>Untuk ${esc(gelaran(p))}</small><small>${esc(p.telefon)}</small>${!p.bayaran&&p.transaction_id&&p.transaction_id!=="RESIT"?`<small>${esc(p.bank||"-")} | ${esc(p.transaction_id)}</small><button class="btn sm ghost" style="margin-top:6px" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>${p.status_bayaran==="Berjaya"&&p.semakan!=="Disahkan"?`<div class="row" style="margin-top:6px"><button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan</button></div>`:""}`:""}</div>
+    <div>${payPanel(p)}</div></div>`).join("")}</div>`;
   return `<div class="tabs">${tabs.map(t => `<button class="${t[0]===cur[0]?"on":""}" onclick="S.payTab='${t[0]}';render()">${t[1]}<span class="n ${t[3]&&t[2].length?"r":""}">${t[2].length}</span></button>`).join("")}
     <button class="btn sm ghost" style="margin-left:auto;align-self:center" onclick="copyText(bankText(),'Maklumat akaun bank disalin')">${SVG.copy} Akaun bank</button></div>
-  ${cur[0]==="semak"&&list.length?`<div class="note info" style="margin-bottom:12px">Tekan <b>Lihat resit</b>, padankan amaun dan tarikh dengan penyata bank Jabatan Haji. Jika wang telah masuk, tekan <b>Sahkan</b>, kemudian maklumkan pendaftar melalui WhatsApp. Kes akan dipindah ke Agihan pengendali.</div>`:""}${body}`;
+  ${cur[0]==="semak"&&list.length?`<div class="note info" style="margin-bottom:12px">Tekan ikon resit untuk melihat, padankan amaun dan tarikh dengan penyata bank Jabatan Haji. Jika wang telah masuk, tekan <b>Sahkan</b> pada baris itu. Bayaran boleh beransur; bila jumlah disahkan mencukupi harga, kes akan dipindah ke Agihan pengendali dan pautan portal diberi kepada pendaftar secara automatik.</div>`:""}${body}`;
+}
+/* ---------- Rekod bayaran: sahkan / tambah / padam ---------- */
+async function rpc(name, args){
+  if(DEMO) return demoRpc(name, args);
+  const { data, error } = await SBC.rpc(name, args);
+  if(error) throw new Error(error.message);
+  if(!data || !data.ok) throw new Error((data && data.error) || "Gagal");
+  return data;
+}
+function applyKira(p, k){
+  p.amaun = Number(k.dibayar) || 0;
+  p.status_bayaran = k.penuh ? "Berjaya" : (Number(k.dibayar) || 0) > 0 ? "Sebahagian" : "Belum Bayar";
+  if(k.penuh){ p.semakan = "Disahkan"; p.tarikh_semakan = p.tarikh_semakan || new Date().toISOString(); }
+  else if(!p.ustaz_id) p.semakan = "";
+}
+async function sahBayaran(id, keputusan, btn){
+  let catatan = "";
+  if(keputusan === "Bermasalah"){ catatan = prompt("Nyatakan masalah bayaran (contoh: amaun tidak sepadan, resit tidak jelas, wang belum masuk):"); if(catatan === null) return; }
+  if(btn) btn.disabled = true;
+  try{
+    const k = await rpc("bh_sah_bayaran", { p_id: id, p_keputusan: keputusan, p_catatan: catatan });
+    const p = S.pendaftar.find(x => x.ref === k.ref);
+    if(p){ const b = (p.bayaran || []).find(x => Number(x.id) === Number(id)); if(b){ b.status = keputusan; b.catatan_semakan = catatan; } applyKira(p, k); }
+    SEEN.add("pay:" + id); saveSeen();
+    if(!$("modal").classList.contains("hide")) closeModal();
+    if(keputusan === "Disahkan"){
+      toast(k.penuh ? `${k.ref}: bayaran penuh disahkan, dipindah ke Agihan pengendali` : `${k.ref}: bayaran disahkan, baki ${rm(k.baki)}`);
+      openWa(k.ref, k.penuh ? "terima" : "ansuran");
+    } else toast(`${k.ref}: bayaran ditanda bermasalah`);
+    render(); if(S.open) openDrawer(S.open);
+    setTimeout(() => load({ silent: true }), 600);
+  }catch(e){ toast(e.message, true); if(btn) btn.disabled = false; }
+}
+function tambahBayaran(ref){
+  const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;
+  const baki = bakiOf(p);
+  $("mbox").innerHTML = `<div class="mh"><h3>Rekod bayaran: ${esc(ref)}</h3><button class="x" onclick="closeModal()" aria-label="Tutup">&times;</button></div>
+  <div class="mb"><p style="margin:0 0 12px;color:var(--mute);font-size:13px">${esc(p.nama)} | harga ${rm(p.harga)} | disahkan ${rm(sahOf(p))} | <b style="color:var(--ink)">baki ${rm(baki)}</b></p>
+    <div class="fg"><label>Amaun diterima (RM)</label><input class="in" id="abAmt" type="number" step="0.01" min="1" value="${baki||""}"></div>
+    <div class="fg"><label>Bank / kaedah</label><select class="in" id="abBank">${BANKS.map(b => `<option>${esc(b[0])}</option>`).join("")}<option>Tunai</option><option>Cek</option><option>Lain-lain</option></select></div>
+    <div class="fg"><label>Tarikh bayaran</label><input class="in" id="abDate" type="date" value="${new Date().toLocaleDateString("en-CA")}"></div>
+    <div class="fg"><label>Resit (pilihan, gambar/PDF)</label><input class="in" id="abFile" type="file" accept="image/*,.pdf"></div>
+    <div class="fg"><label>Catatan</label><input class="in" id="abNota" placeholder="Contoh: resit dihantar melalui WhatsApp"></div>
+    <div class="note info" style="margin-top:8px">Bayaran yang direkod admin terus dikira <b>disahkan</b>. Pastikan wang telah masuk dalam penyata bank.</div></div>
+  <div class="mf"><button class="btn ghost" onclick="closeModal()">Batal</button><button class="btn" id="abSave" onclick="simpanBayaranAdmin('${esc(ref)}')">Simpan bayaran</button></div>`;
+  $("modal").classList.remove("hide");
+}
+async function simpanBayaranAdmin(ref){
+  const amt = Math.round((parseFloat($("abAmt").value) || 0) * 100) / 100;
+  if(!(amt > 0)){ toast("Isi amaun yang sah", true); return; }
+  const b = $("abSave"); b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+  try{
+    let path = "";
+    const f = $("abFile").files && $("abFile").files[0];
+    if(f && !DEMO){
+      const ext = f.type === "application/pdf" ? "pdf" : "jpg";
+      path = `resit/${ref}/admin-${Date.now()}.${ext}`;
+      const up = await SBC.storage.from("bh-resit").upload(path, f, { contentType: f.type || "image/jpeg", upsert: false });
+      if(up.error) throw new Error("Resit gagal dimuat naik: " + up.error.message);
+    }
+    const k = await rpc("bh_admin_bayaran", { p_ref: ref, p_amaun: amt, p_bank: $("abBank").value, p_tarikh: $("abDate").value || null, p_path: path, p_nota: $("abNota").value });
+    closeModal();
+    const p = S.pendaftar.find(x => x.ref === ref);
+    if(p){ (p.bayaran = p.bayaran || []).push({ id: "n" + Date.now(), created_at: new Date().toISOString(), amaun: amt, bank: $("abBank").value, tarikh: $("abDate").value, resit_path: path, nota: $("abNota").value, sumber: "admin", status: "Disahkan" }); applyKira(p, k); }
+    toast(k.penuh ? `${ref}: bayaran penuh, dipindah ke Agihan pengendali` : `${ref}: bayaran direkod, baki ${rm(k.baki)}`);
+    openWa(ref, k.penuh ? "terima" : "ansuran");
+    render(); if(S.open) openDrawer(S.open);
+    setTimeout(() => load({ silent: true }), 600);
+  }catch(e){ toast(e.message, true); b.disabled = false; b.textContent = "Simpan bayaran"; }
+}
+async function padamBayaran(id, ref){
+  if(!confirm("Padam rekod bayaran ini? Jumlah dan status pendaftaran akan dikira semula.")) return;
+  try{
+    const k = await rpc("bh_padam_bayaran", { p_id: id });
+    const p = S.pendaftar.find(x => x.ref === ref);
+    if(p){ p.bayaran = (p.bayaran || []).filter(x => Number(x.id) !== Number(id)); applyKira(p, k); }
+    toast("Rekod bayaran dipadam"); render(); if(S.open) openDrawer(S.open);
+    setTimeout(() => load({ silent: true }), 600);
+  }catch(e){ toast(e.message, true); }
 }
 async function verify(ref, keputusan, btn){
   let catatan = "";
@@ -997,9 +1128,10 @@ function openDrawer(ref){
   const st = [["Daftar", true], ["Dibayar", p.status_bayaran === "Berjaya"], ["Disahkan", ver], ["Pengendali", !!p.ustaz_id], [`Pelaksanaan ${p.ci_n||0}/${S.rukun_total||14}`, fullCi], ["Sijil", fullCi]];
   const cur = st.findIndex(x => !x[1]);
   const u = S.pembadal.find(b => b.id === p.ustaz_id);
-  let pay = `<dl class="kv"><dt>Status bayaran</dt><dd>${esc(p.status_bayaran)}</dd>${p.transaction_id?`<dt>Transaction ID</dt><dd>${esc(p.transaction_id)}</dd>`:""}${p.bank?`<dt>Bank</dt><dd>${esc(p.bank)}</dd>`:""}${p.amaun?`<dt>Amaun</dt><dd>${rm(p.amaun)} ${amtOk(p)?'<span class="match">&#10003; sepadan</span>':'<span class="match no">&#10007; tidak sepadan</span>'}</dd>`:""}${p.tarikh_bayar?`<dt>Tarikh bayar</dt><dd>${isTransfer(p)&&p.resit_tarikh?dt(p.resit_tarikh)+" (ikut resit)":dtt(p.tarikh_bayar)}</dd>`:""}${p.resit_nota?`<dt>Catatan pendaftar</dt><dd>${esc(p.resit_nota)}</dd>`:""}
+  let pay = `<dl class="kv"><dt>Status bayaran</dt><dd>${esc(p.status_bayaran)}${p.status_bayaran==="Sebahagian"?" (baki "+rm(bakiOf(p))+")":""}</dd>${p.transaction_id?`<dt>Transaction ID</dt><dd>${esc(p.transaction_id)}</dd>`:""}${p.bank?`<dt>Bank</dt><dd>${esc(p.bank)}</dd>`:""}${p.amaun?`<dt>Amaun</dt><dd>${rm(p.amaun)} ${amtOk(p)?'<span class="match">&#10003; sepadan</span>':'<span class="match no">&#10007; tidak sepadan</span>'}</dd>`:""}${p.tarikh_bayar?`<dt>Tarikh bayar</dt><dd>${isTransfer(p)&&p.resit_tarikh?dt(p.resit_tarikh)+" (ikut resit)":dtt(p.tarikh_bayar)}</dd>`:""}${p.resit_nota?`<dt>Catatan pendaftar</dt><dd>${esc(p.resit_nota)}</dd>`:""}
     <dt>Semakan admin</dt><dd>${ver?`<span class="pill ok">Disahkan</span> ${p.tarikh_semakan?dtt(p.tarikh_semakan):""}`:p.semakan==="Bermasalah"?`<span class="pill warn">Bermasalah</span> ${esc(p.catatan_semakan)}`:p.status_bayaran==="Berjaya"?'<span class="pill bad">Belum disemak</span>':"-"}</dd></dl>`;
-  pay += `<div class="row" style="margin-top:10px">${isTransfer(p)?resitBtn(p):p.resit_url?`<a class="btn sm ghost" href="${esc(p.resit_url)}" target="_blank" rel="noopener">${SVG.rcpt} Resit BCL</a>`:p.transaction_id?`<button class="btn sm ghost" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>`:""}${p.status_bayaran === "Berjaya" && !ver ? `<button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan bayaran</button>${p.semakan!=="Bermasalah"?`<button class="btn sm red" onclick="verify('${esc(p.ref)}','Bermasalah',this)">Bermasalah</button>`:""}` : ""}</div>`;
+  pay += `<div class="row" style="margin-top:10px">${p.resit_url?`<a class="btn sm ghost" href="${esc(p.resit_url)}" target="_blank" rel="noopener">${SVG.rcpt} Resit BCL</a>`:(p.transaction_id&&p.transaction_id!=="RESIT")?`<button class="btn sm ghost" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>`:""}${p.status_bayaran === "Berjaya" && !ver && !(p.bayaran||[]).length ? `<button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan bayaran</button>${p.semakan!=="Bermasalah"?`<button class="btn sm red" onclick="verify('${esc(p.ref)}','Bermasalah',this)">Bermasalah</button>`:""}` : ""}</div>`;
+  pay = payPanel(p, { drawer: true }) + `<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--mute);font-size:12.5px">Butiran teknikal bayaran</summary>${pay}</details>`;
   let ust;
   if(!ver) ust = `<div class="note info">Pengendali boleh ditugaskan selepas bayaran disemak dan disahkan.</div>`;
   else if(u && !S.changing){
@@ -1432,13 +1564,19 @@ async function loadResit(){
     const m = {}; (data || []).forEach(r => m[r.ref] = r);
     S.pendaftar.forEach(p => { const r = m[p.ref]; if(r) Object.assign(p, { resit_path: r.resit_path, resit_bank: r.resit_bank, resit_tarikh: r.resit_tarikh, resit_nota: r.resit_nota, resit_masa: r.resit_masa }); });
   }catch(e){ console.warn("resit", e); }
+  try{
+    const { data } = await SBC.from("bh_bayaran").select("id,ref,amaun,bank,tarikh,resit_path,nota,sumber,status,catatan_semakan,created_at,tarikh_semakan").order("id");
+    const g = {}; (data || []).forEach(b => (g[b.ref] = g[b.ref] || []).push(b));
+    S.pendaftar.forEach(p => { p.bayaran = g[p.ref] || []; });
+  }catch(e){ console.warn("bayaran", e); }
 }
 function resitNamaFail(p){ const ext = (p.resit_path.split(".").pop() || "jpg").toLowerCase(); return `Resit_${p.ref}_${String(p.nama||"").replace(/[^\w]+/g,"_").slice(0,30)}.${ext}`; }
-async function lihatResit(ref, muatTurun){
-  const p = S.pendaftar.find(x => x.ref === ref); if(!p || !p.resit_path){ toast("Tiada resit dimuat naik", true); return; }
+async function lihatResit(ref, muatTurun, path){
+  const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;
+  path = path || p.resit_path; if(!path){ toast("Tiada resit dimuat naik", true); return; }
   if(DEMO){ toast("Mod demo: resit contoh tiada."); return; }
   const w = muatTurun ? null : window.open("about:blank", "_blank");
-  const { data, error } = await SBC.storage.from("bh-resit").createSignedUrl(p.resit_path, 900, muatTurun ? { download: resitNamaFail(p) } : undefined);
+  const { data, error } = await SBC.storage.from("bh-resit").createSignedUrl(path, 900, muatTurun ? { download: resitNamaFail(Object.assign({}, p, { resit_path: path })) } : undefined);
   if(error || !data){ if(w) w.close(); toast("Resit tidak dapat dibuka: " + (error ? error.message : ""), true); return; }
   if(muatTurun){ const a = document.createElement("a"); a.href = data.signedUrl; a.download = resitNamaFail(p); document.body.appendChild(a); a.click(); a.remove(); toast("Resit dimuat turun"); return; }
   if(w) w.location = data.signedUrl; else window.open(data.signedUrl, "_blank", "noopener");
@@ -1475,15 +1613,31 @@ const DM = (() => {
   P.push(Object.assign({}, P[0], { ref: "BH-1447-0011", musim: "1447H/2026M", tarikh: d(380), tarikh_bayar: d(379), ustaz_id: "PB-001", d_nama: "Rahmah binti Ali", d_jantina: "Perempuan", nama: "Hasnah binti Ali", hubungan: "Ibu" }));
   P.forEach(p => { const u = B.find(b => b.id === p.ustaz_id); if(u) p.ustaz = u.nama; });
   /* contoh bayaran pindahan bank + resit */
-  const t3 = P.find(p => p.ref === "BH-1448-0003"); if(t3) Object.assign(t3, { bank: "Transfer: RHB Islamic Bank Berhad", transaction_id: "RESIT", resit_path: "resit/BH-1448-0003/demo.jpg", resit_bank: "RHB Islamic Bank Berhad", resit_tarikh: d(0.1).slice(0,10), resit_nota: "Transfer dari akaun suami, nama Azman" });
-  const t7 = P.find(p => p.ref === "BH-1448-0007"); if(t7) Object.assign(t7, { bank: "Transfer: CIMB Bank", transaction_id: "RESIT", resit_path: "resit/BH-1448-0007/demo.jpg", resit_bank: "CIMB Bank", resit_tarikh: d(0.4).slice(0,10), resit_nota: "" });
+  let bid = 1; const mk = (ref, amaun, st, days, bank, sumber) => ({ id: bid++, ref, amaun, bank: bank || "RHB Islamic Bank Berhad", tarikh: d(days).slice(0,10), resit_path: "resit/" + ref + "/demo.jpg", nota: "", sumber: sumber || "pendaftar", status: st, catatan_semakan: "", created_at: d(days) });
+  P.forEach(p => { p.bayaran = []; if(p.status_bayaran === "Berjaya") p.bayaran.push(mk(p.ref, p.harga, "Disahkan", 9, "CIMB Bank")); });
+  const t3 = P.find(p => p.ref === "BH-1448-0003"); if(t3) Object.assign(t3, { status_bayaran: "Sebahagian", amaun: 5000, semakan: "", bank: "Transfer: RHB Islamic Bank Berhad", transaction_id: "RESIT", bayaran: [mk(t3.ref, 5000, "Disahkan", 6), mk(t3.ref, 3000, "Menunggu", 0.1, "CIMB Bank")] });
+  const t7 = P.find(p => p.ref === "BH-1448-0007"); if(t7) Object.assign(t7, { status_bayaran: "Belum Bayar", amaun: 0, semakan: "", bank: "", transaction_id: "", bayaran: [mk(t7.ref, 16500, "Menunggu", 0.4, "CIMB Bank")] });
+  const t4 = P.find(p => p.ref === "BH-1448-0004"); if(t4) Object.assign(t4, { status_bayaran: "Sebahagian", amaun: 8000, bayaran: [mk(t4.ref, 8000, "Disahkan", 2, "Tunai", "admin")] });
   return { M, P, B };
 })();
 function demoNewPay(){
-  const p = DM.P.find(x => x.status_bayaran !== "Berjaya");
+  const p = DM.P.find(x => x.status_bayaran !== "Berjaya" && !(x.bayaran||[]).some(b => b.status === "Menunggu"));
   if(!p){ toast("Tiada lagi pendaftar belum bayar dalam data demo"); return; }
-  Object.assign(p, { status_bayaran: "Berjaya", amaun: 16500, bank: "CIMB Clicks", transaction_id: "trx_" + p.ref.slice(-4) + "B71", tarikh_bayar: new Date().toISOString() });
+  (p.bayaran = p.bayaran || []).push({ id: Date.now(), ref: p.ref, amaun: 4000, bank: "CIMB Bank", tarikh: new Date().toLocaleDateString("en-CA"), resit_path: "resit/" + p.ref + "/demo.jpg", nota: "", sumber: "pendaftar", status: "Menunggu", catatan_semakan: "", created_at: new Date().toISOString() });
   load({ silent: true });
+}
+function demoKira(p){
+  const sah = (p.bayaran||[]).filter(b => b.status === "Disahkan").reduce((a, b) => a + Number(b.amaun), 0);
+  const penuh = sah + 0.009 >= p.harga; p.amaun = sah; p.status_bayaran = penuh ? "Berjaya" : sah > 0 ? "Sebahagian" : "Belum Bayar";
+  if(penuh){ p.semakan = "Disahkan"; p.tarikh_semakan = new Date().toISOString(); p.tarikh_bayar = new Date().toISOString(); } else if(!p.ustaz_id) p.semakan = "";
+  return { ok: true, ref: p.ref, harga: p.harga, dibayar: sah, menunggu: (p.bayaran||[]).filter(b => b.status === "Menunggu").reduce((a, b) => a + Number(b.amaun), 0), baki: Math.max(0, p.harga - sah), penuh };
+}
+async function demoRpc(name, a){
+  await new Promise(r => setTimeout(r, 200));
+  if(name === "bh_sah_bayaran"){ const p = DM.P.find(x => (x.bayaran||[]).some(b => Number(b.id) === Number(a.p_id))); const b = p.bayaran.find(b => Number(b.id) === Number(a.p_id)); b.status = a.p_keputusan; b.catatan_semakan = a.p_catatan || ""; return demoKira(p); }
+  if(name === "bh_admin_bayaran"){ const p = DM.P.find(x => x.ref === a.p_ref); (p.bayaran = p.bayaran || []).push({ id: Date.now(), ref: p.ref, amaun: a.p_amaun, bank: a.p_bank, tarikh: a.p_tarikh, resit_path: a.p_path, nota: a.p_nota, sumber: "admin", status: "Disahkan", created_at: new Date().toISOString() }); return demoKira(p); }
+  if(name === "bh_padam_bayaran"){ const p = DM.P.find(x => (x.bayaran||[]).some(b => Number(b.id) === Number(a.p_id))); p.bayaran = p.bayaran.filter(b => Number(b.id) !== Number(a.p_id)); return demoKira(p); }
+  throw new Error("Tindakan tidak sah");
 }
 async function demoApi(action, d){
   await new Promise(r => setTimeout(r, 200));

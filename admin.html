@@ -621,7 +621,7 @@ function stage(p){
 }
 /* rekod bayaran (bh_bayaran) */
 const sumB = (p, st) => (p.bayaran || []).filter(b => b.status === st).reduce((a, b) => a + (Number(b.amaun) || 0), 0);
-const sahOf = p => p.bayaran ? sumB(p, "Disahkan") : (Number(p.amaun) || 0);
+const sahOf = p => (p.bayaran && p.bayaran.length) ? sumB(p, "Disahkan") : (Number(p.amaun) || 0);
 const tungguOf = p => sumB(p, "Menunggu");
 const bakiOf = p => Math.max(0, (Number(p.harga) || 0) - sahOf(p));
 const adaTunggu = p => (p.bayaran || []).some(b => b.status === "Menunggu");

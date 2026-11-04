@@ -826,16 +826,22 @@ function waTemplates(p, extra = {}){
   const T = [];
   if(p.status_bayaran === "Berjaya" && p.semakan !== "Disahkan" && !p.ustaz_id) T.push(["resit", "Resit diterima", `Assalamualaikum ${shortName(p.nama)}.\n\nTerima kasih. Resit bayaran badal haji bagi ${gelaran(p)} (${p.ref}) telah kami terima dan sedang disemak oleh Jabatan Haji MKM.\n\nPengesahan akan dimaklumkan dalam masa 1 hari bekerja, insya-Allah.`]);
   if(p.status_bayaran === "Berjaya" && (p.semakan === "Disahkan" || p.ustaz_id)) T.push(["terima", "Bayaran disahkan", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, bayaran ${rm(p.amaun||p.harga)} bagi badal haji ${gelaran(p)} telah diterima dan disahkan oleh Jabatan Haji MKM.\nNo. rujukan: ${p.ref}\n\nAkad badal haji tuan/puan telah disimpan. Langkah seterusnya, kami akan melantik ustaz pembadal dan memaklumkan nama beliau berserta pautan portal penjejakan.\n\nJazakallahu khairan atas kepercayaan kepada MKM.`]);
-  if(u) T.push(["pengendali", "Maklumat pengendali", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, badal haji ${gelaran(p)} (${p.ref}) akan dilaksanakan oleh:\n*${u.nama}*\n${u.haji?"Haji fardu "+u.haji:""}${u.kelulusan?", "+u.kelulusan:""}\n\nProfil pengendali dan perjalanan setiap rukun boleh dilihat di:\n${pl}`]);
+  if(u) T.unshift(["pengendali", "Maklumat pengendali", `Assalamualaikum ${shortName(p.nama)}.\n\nAlhamdulillah, badal haji ${gelaran(p)} (${p.ref}) akan dilaksanakan oleh:\n*${u.nama}*\n${[u.haji?"Haji fardu "+u.haji:"", u.kelulusan||""].filter(Boolean).join(", ")}\n\nProfil pengendali dan perjalanan setiap rukun (niat, tawaf, saie, wukuf dan seterusnya) boleh dipantau di portal penjejakan:\n${pl}\n\nSila simpan pautan ini. Kami akan kemas kini setiap langkah sepanjang musim haji, insya-Allah.`]);
   if(p.status_bayaran === "Berjaya") T.push(["portal", "Pautan portal", `Assalamualaikum ${shortName(p.nama)}.\n\nIni pautan portal penjejakan badal haji ${gelaran(p)} (${p.ref}):\n${pl}\n\nSila simpan pautan ini untuk memantau perjalanan setiap rukun.`]);
   if(p.status_bayaran !== "Berjaya") T.push(["bayar", "Peringatan bayaran", `Assalamualaikum ${shortName(p.nama)}.\n\nTerima kasih kerana mendaftar badal haji MKM bagi ${gelaran(p)} (${p.ref}).\n\nPendaftaran tuan/puan belum lengkap kerana resit bayaran belum kami terima. Sila buat pindahan ${rm(p.harga)} ke akaun Jabatan Haji MKM:\n\n${bankText()}\n\nRecipient Reference: ${p.ref}\n\nKemudian muat naik resit di pautan ini:\n${resitLink(p)}\n\nJika ada sebarang pertanyaan, kami sedia membantu.`]);
   T.push(["bebas", "Mesej bebas", `Assalamualaikum ${shortName(p.nama)}.\n\n`]);
   return T;
 }
+/* templat lalai ikut peringkat kes: pengendali ditugaskan > bayaran disahkan > resit diterima > peringatan bayaran */
+function defaultTpl(p){
+  if(p.ustaz_id) return "pengendali";
+  if(p.status_bayaran === "Berjaya") return p.semakan === "Disahkan" ? "terima" : "resit";
+  return "bayar";
+}
 function openWa(ref, tpl, extra = {}){
   const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;
   const T = waTemplates(p, extra);
-  const cur = T.find(t => t[0] === tpl) || T[0];
+  const cur = T.find(t => t[0] === (tpl || defaultTpl(p))) || T[0];
   $("mbox").innerHTML = `<div class="mh"><h3>WhatsApp pendaftar</h3><button class="x" onclick="closeModal()" aria-label="Tutup">&times;</button></div>
   <div class="mb wam"><p style="margin:0 0 10px;color:var(--mute);font-size:13px">Kepada <b style="color:var(--ink)">${esc(p.nama)}</b> (${esc(p.telefon)}) | ${esc(p.ref)}</p>
     <div class="tpls">${T.map(t => `<button class="${t[0]===cur[0]?"on":""}" onclick="openWa('${esc(ref)}','${t[0]}',${esc(JSON.stringify(extra))})">${t[1]}</button>`).join("")}</div>
@@ -890,7 +896,7 @@ function vPembayaran(){
     <div>${esc(p.nama)}<small>Untuk ${esc(gelaran(p))}</small>${isTransfer(p)?`<small>Pindahan bank</small>${resitInfo(p)}`:`<small>${esc(p.bank || "-")} | ${esc(p.transaction_id || "-")}</small>`}</div>
     <div><div class="amt">${rm(p.amaun)}</div>${amtOk(p)?`<span class="match">&#10003; Sepadan dengan harga ${rm(p.harga)}</span>`:`<span class="match no">&#10007; Harga ${rm(p.harga)}, semak semula</span>`}
       ${p.semakan==="Bermasalah"&&p.catatan_semakan?`<small style="color:var(--warn);margin-top:4px">Catatan: ${esc(p.catatan_semakan)}</small>`:""}${cur[0]==="sah"?`<small>Disahkan ${dtt(p.tarikh_semakan)}</small>`:""}</div>
-    <div class="act">${isTransfer(p)?resitBtn(p):p.resit_url?`<a class="btn sm ghost" href="${esc(p.resit_url)}" target="_blank" rel="noopener">${SVG.rcpt} Resit BCL</a>`:`<button class="btn sm ghost" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>`}${cur[0]==="sah" ? `<button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button>`
+    <div class="act">${isTransfer(p)?resitBtn(p):p.resit_url?`<a class="btn sm ghost" href="${esc(p.resit_url)}" target="_blank" rel="noopener">${SVG.rcpt} Resit BCL</a>`:`<button class="btn sm ghost" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>`}${cur[0]==="sah" ? `<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button><button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button>`
       : `<button class="btn sm red" onclick="verify('${esc(p.ref)}','Bermasalah',this)">Bermasalah</button><button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan</button>`}</div></div>`).join("")}</div>`;
   return `<div class="tabs">${tabs.map(t => `<button class="${t[0]===cur[0]?"on":""}" onclick="S.payTab='${t[0]}';render()">${t[1]}<span class="n ${t[3]&&t[2].length?"r":""}">${t[2].length}</span></button>`).join("")}
     <button class="btn sm ghost" style="margin-left:auto;align-self:center" onclick="copyText(bankText(),'Maklumat akaun bank disalin')">${SVG.copy} Akaun bank</button></div>
@@ -905,7 +911,11 @@ async function verify(ref, keputusan, btn){
     SEEN.add("pay:" + ref); saveSeen();
     const card = $("q_" + ref); if(card) card.classList.add("out");
     if(!$("modal").classList.contains("hide")) closeModal();
-    if(keputusan === "Disahkan") toast(`${ref}: bayaran disahkan dan dipindah ke Agihan pengendali`, false, ["Maklumkan pendaftar", `openWa('${ref}','terima')`]);
+    if(keputusan === "Disahkan"){
+      const p = S.pendaftar.find(x => x.ref === ref); if(p){ p.semakan = "Disahkan"; p.tarikh_semakan = new Date().toISOString(); }
+      toast(`${ref}: bayaran disahkan dan dipindah ke Agihan pengendali`);
+      openWa(ref, "terima"); /* pop-up WhatsApp terus keluar; admin tekan Buka WhatsApp untuk hantar */
+    }
     else toast(`${ref}: ditanda bermasalah`);
     setTimeout(() => load(), 350);
   }catch(e){ toast(e.message, true); if(btn) btn.disabled = false; }
@@ -969,7 +979,9 @@ async function assignQuick(ref, btn){
   try{
     await api("admin_assign", { ref, pembadal_id: sel.value });
     const c = $("a_" + ref); if(c) c.classList.add("out");
+    const p = S.pendaftar.find(x => x.ref === ref); if(p){ p.ustaz_id = sel.value; const u = S.pembadal.find(b => b.id === sel.value); if(u) p.ustaz = u.nama; }
     toast(`${ref}: pengendali ditugaskan`);
+    openWa(ref, "pengendali"); /* pop-up WhatsApp: maklumat pengendali + pautan portal */
     setTimeout(() => load(), 350);
   }catch(e){ toast(e.message, true); btn.disabled = false; btn.textContent = "Tugaskan"; }
 }
@@ -1026,7 +1038,7 @@ async function openDoc(ref){ const w = window.open("", "_blank"); try{ const j =
 function closeDrawer(){ $("drawer").classList.add("hide"); document.body.style.overflow = ""; S.open = ""; S.pick = ""; S.changing = false; render(); }
 async function assignDrawer(ref){
   const b = $("asgBtn"); b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-  try{ await api("admin_assign", { ref, pembadal_id: S.pick }); toast("Pengendali ditugaskan"); S.pick = ""; S.changing = false; await load(); }
+  try{ await api("admin_assign", { ref, pembadal_id: S.pick }); toast("Pengendali ditugaskan"); S.pick = ""; S.changing = false; await load(); openWa(ref, "pengendali"); }
   catch(e){ toast(e.message, true); b.disabled = false; b.textContent = "Tugaskan pengendali"; }
 }
 async function unassign(ref){

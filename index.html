@@ -691,7 +691,7 @@ function trDrive(bank, tel, amt){
   try{
     const fr = new FileReader();
     fr.onload = () => {
-      const body = JSON.stringify({ k: RESIT_DRIVE_KEY, ref: TRS.ref, nama: val("nama"), telefon: tel, bank: bank.bank, tarikh: $("trDate").value, nota: "RM " + (amt || 0).toLocaleString("en-MY") + (val("trNota") ? " | " + val("trNota") : ""), musim: (window.CONF && CONF.musim) || "", mime: TRS.pdf ? "application/pdf" : "image/jpeg", data: String(fr.result).split(",")[1] });
+      const body = JSON.stringify({ k: RESIT_DRIVE_KEY, ref: TRS.ref, nama: val("nama") || TRS.nama || "", telefon: tel, bank: bank.bank, tarikh: $("trDate").value, nota: "RM " + (amt || 0).toLocaleString("en-MY") + (val("trNota") ? " | " + val("trNota") : ""), musim: (window.CONF && CONF.musim) || "", mime: TRS.pdf ? "application/pdf" : "image/jpeg", data: String(fr.result).split(",")[1] });
       fetch(RESIT_DRIVE_URL, { method: "POST", body, headers: { "Content-Type": "text/plain;charset=utf-8" }, keepalive: true }).catch(() => {});
     };
     fr.readAsDataURL(TRS.file);
@@ -743,7 +743,7 @@ async function trSemak(){
     if(DEMO){ await new Promise(r => setTimeout(r, 600)); s = { ok: true, harga: CONF.harga, dibayar: 5000, menunggu: 0, baki: CONF.harga - 5000, penuh: false, portal: "", senarai: [{ amaun: 5000, tarikh: new Date().toISOString(), bank: "CIMB Bank", status: "Disahkan" }] }; }
     else{ const r = await trSb.rpc("bh_status_bayaran", { p_ref: TRS.ref, p_telefon: tel }); if(r.error) throw new Error(r.error.message); s = r.data; }
     if(!s || !s.ok) throw new Error((s && s.error) || "Tidak dapat menyemak");
-    TRS.tel = tel;
+    TRS.tel = tel; TRS.nama = s.nama || "";
     if(s.penuh){ showResitOk(TRS.ref, s); return; }
     trRenderBal(s);
     $("trGate").classList.add("hide"); $("trSteps").classList.remove("hide");

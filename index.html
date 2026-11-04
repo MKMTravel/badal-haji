@@ -285,6 +285,30 @@ textarea.in{height:auto;padding:11px 13px;resize:vertical;line-height:1.5}
   </div></div></section>
  <section id="redirecting" class="done hide"><div class="tick"><span class="spin dark"></span></div><h2>Membawa anda ke halaman bayaran</h2><p>No. rujukan</p><div class="ref" id="rdRef"></div><p>Jika halaman bayaran tidak dibuka secara automatik, <a id="rdLink" href="#">tekan di sini</a>.</p></section>
  <section id="payres" class="done hide"><div class="tick" id="prIcon"></div><h2 id="prTitle"></h2><p>No. rujukan</p><div class="ref" id="prRef"></div><p id="prMsg"></p><div id="prAct" class="act"></div></section>
+<section id="transfer" class="tr hide">
+ <h2>Bayaran badal haji</h2>
+ <p class="lead">Sila buat pindahan bank ke salah satu akaun di bawah, kemudian muat naik resit.</p>
+ <div class="refbox"><small>No. rujukan pendaftaran</small><div class="ref" id="trRef"></div><small>Tulis no. rujukan ini dalam ruangan <b>Recipient Reference</b> semasa transfer</small></div>
+ <div class="steps">
+  <div class="stp"><div class="sh2"><span class="k">1</span><b>Pilih akaun dan buat pindahan</b></div><div class="sb2">
+   <div id="bankList"></div>
+   <div class="amt2"><div><small>Jumlah bayaran</small><b id="trAmt"></b></div><button type="button" class="cpy" onclick="trCopy($('trAmtRaw').value,'Jumlah disalin')">Salin jumlah</button><input type="hidden" id="trAmtRaw"></div>
+   <div class="warn2"><b>Penting:</b> pastikan nama penerima ialah <b>MKM Ticketing Travel &amp; Tours Sdn Bhd</b>. Bayaran hanya dikira sah selepas resit dimuat naik dan disahkan oleh MKM.</div>
+  </div></div>
+  <div class="stp"><div class="sh2"><span class="k">2</span><b>Muat naik resit pindahan</b></div><div class="sb2">
+   <div class="rlogin hide" id="trPhoneWrap"><div class="f"><label for="trPhone">No. telefon yang didaftarkan <i class="req">*</i></label><input class="in" id="trPhone" type="tel" inputmode="tel" placeholder="012 345 6789"><div class="hint">Untuk mengesahkan pendaftaran ini milik anda.</div></div></div>
+   <div class="f"><label for="trDate">Tarikh pindahan <i class="req">*</i></label><input class="in" id="trDate" type="date"></div>
+   <div class="f"><span class="lbl">Resit / tangkap layar pindahan <i class="req">*</i></span>
+    <div class="rupload" id="trBox"><div class="pv" id="trPv"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></div>
+     <div class="tx"><b id="trFileName">Tiada fail dipilih</b>Gambar atau PDF, maksimum 10MB</div>
+     <label class="upbtn" for="trFile">Pilih fail</label><input type="file" id="trFile" accept="image/*,.pdf" onchange="trPick(this)"></div></div>
+   <div class="f"><label for="trNota">Catatan <small>(pilihan)</small></label><input class="in" id="trNota" placeholder="Contoh: transfer dari akaun anak, nama Ahmad"></div>
+   <div class="err" id="trErr"></div>
+   <button class="btn2" type="button" id="trSend" onclick="trHantar()">Hantar resit</button>
+   <button class="later" type="button" onclick="trLater()">Saya akan hantar resit kemudian</button>
+  </div></div>
+ </div>
+</section>
 </div>
 <div class="foot">MKM Ticketing Travel &amp; Tours Sdn. Bhd. (964005-X) | Lesen MOTAC KPL6666</div>
 
@@ -472,6 +496,7 @@ async function submitForm(){
     $("form").classList.add("hide");
     if(window.onDone) onDone();
     window.scrollTo({top: 0, behavior: "smooth"});
+    if(window.showTransfer){ showTransfer(res.id); return; }  /* bayaran: pindahan bank + resit */
     if(res.payment_url){ goPay(res.id, res.payment_url); return; }
     if(DEMO && $("demopay")){ showDemoPay(res.id); return; }
     $("ref").textContent = res.id;
@@ -495,6 +520,7 @@ function goPay(id, url){
   setTimeout(() => { location.href = url; }, 900);
 }
 async function bayarSemula(id, btn){
+  if(window.showTransfer){ showTransfer(id, { needPhone: true }); return; }
   if(DEMO && $("demopay")){ showDemoPay(id); return; }
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Membuka halaman bayaran...'; }
   try{
@@ -580,5 +606,148 @@ loadConfig();
 checkReturn();
 
 </script>
+<!-- ===== Bayaran secara pindahan bank + resit (ganti BCL) ===== -->
+<style>
+.tr{padding:34px 40px 40px}
+.tr h2{font-family:var(--serif);font-size:26px;color:var(--navy);margin:0 0 6px;text-align:center}
+.tr .lead{text-align:center;color:var(--mute);margin:0 0 20px;font-size:14px}
+.tr .refbox{text-align:center;margin-bottom:18px}
+.tr .refbox .ref{margin:4px 0 0}
+.tr .refbox small{display:block;color:var(--mute);font-size:12.5px}
+.steps{display:grid;gap:16px;max-width:620px;margin:0 auto}
+.stp{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.stp .sh2{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+.stp .sh2 .k{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px;flex:none}
+.stp .sh2 b{font-size:15px;color:var(--navy)}
+.stp .sb2{padding:14px 16px}
+.bank{display:flex;gap:12px;align-items:center;border:1px solid var(--field);border-radius:8px;padding:12px 14px;cursor:pointer;background:#fff}
+.bank+.bank{margin-top:10px}
+.bank input{width:18px;height:18px;accent-color:var(--navy);flex:none;margin:0}
+.bank .bi{flex:1;min-width:0}
+.bank .bi b{display:block;font-size:14.5px}
+.bank .bi .no{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:17px;letter-spacing:.06em;color:var(--navy);font-weight:700;margin:2px 0}
+.bank .bi small{display:block;color:var(--mute);font-size:12px}
+.bank:has(input:checked){border-color:var(--navy);background:#F1F3FB;box-shadow:inset 3px 0 0 var(--navy)}
+.cpy{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:6px;padding:7px 12px;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.amt2{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--navy);color:#fff;border-radius:8px;padding:12px 14px;margin-top:12px}
+.amt2 b{font-size:22px}
+.amt2 small{display:block;color:#C3CAF5;font-size:12px}
+.amt2 .cpy{border-color:#fff;background:transparent;color:#fff}
+.tr .warn2{background:#FFF4DF;color:#8A5300;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:12px}
+.tr .warn2 b{color:#7A3E00}
+.rupload{display:flex;align-items:center;gap:12px;border:1px dashed #A3ABC6;border-radius:8px;padding:12px 14px;background:var(--soft)}
+.rupload.has{border-style:solid;border-color:var(--ok);background:#F2FAF5}
+.rupload .pv{width:56px;height:56px;border-radius:8px;background:#E3E7F2;display:grid;place-items:center;overflow:hidden;flex:none;color:#8D94B0}
+.rupload .pv img{width:100%;height:100%;object-fit:cover}
+.rupload .tx{flex:1;min-width:0;font-size:12.5px;color:var(--mute)}
+.rupload .tx b{display:block;color:var(--ink);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rupload input{display:none}
+.tr .btn2{width:100%;max-width:none;margin-top:14px}
+.tr .later{display:block;margin:12px auto 0;border:0;background:none;color:var(--mute);font-size:13px;cursor:pointer;text-decoration:underline}
+.tr .err{color:var(--bad);font-size:13.5px;margin-top:10px;display:none}
+.tr .err.show{display:block}
+.rlogin{max-width:420px;margin:0 auto}
+@media (max-width:760px){ .tr{padding:24px 16px 32px} .bank{flex-wrap:wrap} .bank .cpy{flex:1 1 100%;text-align:center} }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* ---- Tetapan Supabase (sama dengan admin.html) ---- */
+const TR_SB_URL = "https://axjgwbgofoxijesxfvfs.supabase.co";
+const TR_SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4amd3YmdvZm94aWplc3hmdmZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NDkwMDUsImV4cCI6MjEwMjUyNTAwNX0.3RIUa_E7VRciWGUIiqJLq3SsY_iPr8DdMK-RDIIj36A";
+const TR_BANKS = [
+  { id: "rhb", bank: "RHB Islamic Bank Berhad", no: "26231700021373", nama: "MKM Ticketing Travel & Tours Sdn Bhd" },
+  { id: "cimb", bank: "CIMB Bank", no: "8602108663", nama: "MKM Ticketing Travel & Tours Sdn Bhd" }
+];
+const TRS = { ref: "", file: null, pdf: false, needPhone: false };
+const trSb = (!DEMO && window.supabase && TR_SB_URL) ? window.supabase.createClient(TR_SB_URL, TR_SB_KEY, { auth: { persistSession: false } }) : null;
+
+async function trCopy(t, msg){ try{ await navigator.clipboard.writeText(t); trToast(msg || "Disalin"); }catch(e){ prompt("Salin:", t); } }
+function trToast(t){ let e = $("trToast"); if(!e){ e = document.createElement("div"); e.id = "trToast"; e.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1A1F3C;color:#fff;padding:10px 18px;border-radius:10px;font-weight:600;font-size:13.5px;z-index:99;transition:opacity .3s"; document.body.appendChild(e); } e.textContent = t; e.style.opacity = 1; clearTimeout(trToast.h); trToast.h = setTimeout(() => e.style.opacity = 0, 2200); }
+
+function showTransfer(ref, opts = {}){
+  TRS.ref = ref; TRS.needPhone = !!opts.needPhone;
+  ["form","ok","payres","redirecting","demopay"].forEach(x => $(x) && $(x).classList.add("hide"));
+  if($("navbar")) $("navbar").classList.add("hide");
+  $("trRef").textContent = ref;
+  const amt = rm(CONF.harga); $("trAmt").textContent = amt; $("trAmtRaw").value = String(CONF.harga).replace(/[^\d.]/g, "");
+  $("bankList").innerHTML = TR_BANKS.map((b, i) => `<label class="bank"><input type="radio" name="trBank" value="${b.id}" ${i===0?"checked":""}><span class="bi"><b>${esc(b.bank)}</b><span class="no">${esc(b.no)}</span><small>${esc(b.nama)}</small></span><button type="button" class="cpy" onclick="event.preventDefault();trCopy('${b.no}','No. akaun disalin')">Salin no. akaun</button></label>`).join("");
+  $("trPhoneWrap").classList.toggle("hide", !TRS.needPhone);
+  if(!$("trDate").value) $("trDate").value = new Date().toLocaleDateString("en-CA");
+  $("transfer").classList.remove("hide");
+  try{ localStorage.setItem("bh_last_ref", ref); }catch(e){}
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function trShrink(file, max){
+  return new Promise(res => { const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      c.toBlob(b => res(b && b.size < file.size ? b : file), "image/jpeg", 0.85); };
+    img.onerror = () => res(file); img.src = url; });
+}
+async function trPick(inp){
+  const f = inp.files && inp.files[0]; inp.value = ""; if(!f) return;
+  const isPdf = f.type === "application/pdf", isImg = /^image\//.test(f.type);
+  if(!isPdf && !isImg){ trError("Sila pilih fail gambar atau PDF."); return; }
+  const blob = isImg ? await trShrink(f, 2000) : f;
+  if(blob.size > 10 * 1024 * 1024){ trError("Fail terlalu besar. Maksimum 10MB."); return; }
+  TRS.file = blob; TRS.pdf = isPdf;
+  $("trFileName").textContent = f.name; $("trBox").classList.add("has");
+  $("trPv").innerHTML = isImg ? `<img src="${URL.createObjectURL(blob)}" alt="">` : `<b style="font-size:12px;color:var(--navy)">PDF</b>`;
+  trError("");
+}
+function trError(m){ const e = $("trErr"); e.textContent = m; e.classList.toggle("show", !!m); }
+async function trHantar(){
+  trError("");
+  const tel = TRS.needPhone ? val("trPhone") : val("telefon");
+  if(TRS.needPhone && !phoneOk(tel)){ trError("Sila isi no. telefon yang didaftarkan."); return; }
+  if(!$("trDate").value){ trError("Sila isi tarikh pindahan."); return; }
+  if(!TRS.file){ trError("Sila pilih fail resit."); return; }
+  const bankId = (document.querySelector('input[name=trBank]:checked') || {}).value, bank = TR_BANKS.find(b => b.id === bankId) || TR_BANKS[0];
+  const btn = $("trSend"); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Memuat naik resit...';
+  try{
+    if(DEMO){ await new Promise(r => setTimeout(r, 1000)); showResitOk(TRS.ref); return; }
+    const path = `resit/${TRS.ref}/${Date.now()}.${TRS.pdf ? "pdf" : "jpg"}`;
+    const up = await trSb.storage.from("bh-resit").upload(path, TRS.file, { contentType: TRS.pdf ? "application/pdf" : "image/jpeg", upsert: false });
+    if(up.error) throw new Error(/bucket|row-level|security|not found/i.test(up.error.message) ? "Storan resit belum disediakan. Sila hubungi MKM." : up.error.message);
+    btn.innerHTML = '<span class="spin"></span>Menghantar...';
+    const { data, error } = await trSb.rpc("bh_hantar_resit", { p_ref: TRS.ref, p_telefon: tel, p_path: path, p_bank: bank.bank, p_tarikh: $("trDate").value, p_nota: val("trNota") });
+    if(error) throw new Error(error.message);
+    if(!data || !data.ok) throw new Error((data && data.error) || "Resit tidak dapat dihantar");
+    showResitOk(TRS.ref);
+  }catch(e){
+    trError("Maaf, resit tidak dapat dihantar (" + (e.message || e) + "). Sila cuba lagi atau hantar resit melalui WhatsApp MKM bersama no. rujukan " + TRS.ref + ".");
+    btn.disabled = false; btn.textContent = "Hantar resit";
+  }
+}
+function showResitOk(ref){
+  $("transfer").classList.add("hide");
+  const box = $("payres"); box.classList.remove("hide"); box.dataset.state = "Berjaya";
+  $("prRef").textContent = ref;
+  $("prIcon").innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  $("prTitle").textContent = "Resit diterima";
+  $("prMsg").textContent = "Terima kasih. Pihak MKM akan menyemak bayaran tuan/puan dalam masa 1 hari bekerja. Pengesahan dan maklumat ustaz pembadal akan dihantar melalui WhatsApp.";
+  $("prAct").innerHTML = "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function trLater(){
+  const link = location.origin + location.pathname + "?resit=" + encodeURIComponent(TRS.ref);
+  $("transfer").classList.add("hide");
+  const box = $("payres"); box.classList.remove("hide"); box.dataset.state = "Lambat";
+  $("prRef").textContent = TRS.ref;
+  $("prIcon").innerHTML = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  $("prTitle").textContent = "Menunggu resit bayaran";
+  $("prMsg").innerHTML = `Pendaftaran disimpan. Buat pindahan ke akaun MKM dan hantar resit di pautan ini:<br><a href="${esc(link)}" style="color:var(--blue);font-weight:700;word-break:break-all">${esc(link)}</a><br><br>Pendaftaran hanya lengkap selepas resit diterima dan disahkan.`;
+  $("prAct").innerHTML = `<button class="btn2 ghost2" type="button" onclick="trCopy('${esc(link)}','Pautan disalin')">Salin pautan</button><button class="btn2" type="button" onclick="showTransfer('${esc(TRS.ref)}',{needPhone:${TRS.needPhone}})">Hantar resit sekarang</button>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+/* Buka semula dari pautan ?resit=BH-xxxx (hantar resit kemudian): tunggu tetapan dimuat */
+(function(){
+  const r = new URLSearchParams(location.search).get("resit"); if(!r) return;
+  const go = () => { if(window.__trOpened) return; window.__trOpened = 1; showTransfer(r.toUpperCase(), { needPhone: true }); };
+  const _ac = applyConfig; applyConfig = function(){ _ac(); go(); };
+  setTimeout(go, DEMO ? 0 : 5000);
+})();
+</script>
+
 </body>
 </html>

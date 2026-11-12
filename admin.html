@@ -246,6 +246,9 @@ table.t{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--ca
 .paysum .pbar{height:7px;border-radius:99px;background:#E9ECF8;margin:8px 0 10px;display:flex;overflow:hidden}
 .paysum .pbar i{display:block;height:100%;background:var(--ok)}.paysum .pbar i.t{background:var(--warn)}
 table.t.pay{font-size:13px}table.t.pay td,table.t.pay th{padding:8px 8px}table.t.pay small{display:block;color:var(--mute);font-size:11.5px}
+.qc.dup{border-color:#C9D2FF;background:#F8F9FF}
+.dupnote{font-size:12.5px;color:var(--navy);background:#E8ECFF;border-radius:8px;padding:6px 10px;margin-bottom:6px;width:100%}
+.dupnote a{font-weight:700}
 .abgroup{display:block}.abgroup:has(.abhist)>.qc{border-radius:10px 10px 0 0}
 .abhist{margin:0;padding:0 14px 8px;background:#F7F8FC;border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px}
 .abhist summary{cursor:pointer;font-size:12.5px;color:var(--mute);padding:8px 0}
@@ -905,23 +908,40 @@ function vAbandon(){
   const list = all.filter(p => match(p, S.abTab)).sort((a, b) => String(b.tarikh).localeCompare(String(a.tarikh)));
   /* pendaftaran berulang (telefon sama + nama dibadalkan sama): tunjuk yang terkini, yang lama jadi sejarah */
   const key = p => (String(p.telefon||"").replace(/\D/g,"").slice(-9)) + "|" + String(p.d_nama||"").trim().toLowerCase();
+  const dibayar = p => S.pendaftar.find(x => x.ref !== p.ref && key(x) === key(p) && (x.status_bayaran === "Berjaya" || x.status_bayaran === "Sebahagian" || x.ustaz_id || (x.bayaran||[]).some(b => b.status !== "Bermasalah")));
   const groups = new Map();
   list.forEach(p => { const k = key(p); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
   const rows = [...groups.values()];
   const aktif = all.filter(p => !p.arkib);
   const aktifOrang = new Set(aktif.map(key)).size;
-  const card = p => `<div class="qc">
+  const card = p => { const d = dibayar(p); return `<div class="qc${d?" dup":""}">
     <div><span class="ref">${esc(p.ref)}</span><small>Daftar ${dtt(p.tarikh)}</small><small>${esc(ago(p.tarikh))}</small></div>
     <div>${esc(p.nama)}<small>${esc(p.telefon)} | ${esc(p.emel)}</small><small>Untuk ${esc(gelaran(p))}</small></div>
     <div><span class="pill ${p.status_bayaran==="Gagal"?"bad":p.status_bayaran==="Dibatalkan"?"warn":"grey"}">${esc(p.status_bayaran)}</span><small style="margin-top:4px">${rm(p.harga)}</small></div>
-    <div class="act"><button class="btn sm" onclick="tambahBayaran('${esc(p.ref)}')">Selesai bayaran</button><button class="btn sm wa" onclick="openWa('${esc(p.ref)}','bayar')">${SVG.wa} Ingatkan</button>
+    <div class="act">${d?`<div class="dupnote">Orang ini telah membayar pada <a href="#" onclick="openDrawer('${esc(d.ref)}');return false">${esc(d.ref)}</a> (${d.status_bayaran==="Berjaya"?"penuh":"ansuran "+rm(sahOf(d))}). Rekod ini berulang.</div><button class="btn sm" onclick="selesaiBerulang('${esc(p.ref)}','${esc(d.ref)}')">Selesai: padam rekod berulang</button>`:`<button class="btn sm" onclick="tambahBayaran('${esc(p.ref)}')">Rekod bayaran</button>`}<button class="btn sm wa" onclick="openWa('${esc(p.ref)}','bayar')">${SVG.wa} Ingatkan</button>
       ${p.arkib?`<button class="btn sm ghost" onclick="arkib('${esc(p.ref)}',false)">Pulihkan</button>`:`<button class="btn sm ghost" onclick="arkib('${esc(p.ref)}',true)">Arkib</button>`}
-      <button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button><button class="btn sm red" onclick="padamPendaftaran('${esc(p.ref)}')">Padam</button></div></div>`;
+      <button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button><button class="btn sm red" onclick="padamPendaftaran('${esc(p.ref)}')">Padam</button></div></div>`; };
   const hist = (g) => g.length < 2 ? "" : `<details class="abhist"><summary>${g.length - 1} pendaftaran lama oleh orang yang sama (berulang)</summary>${g.slice(1).map(p => `<div class="abh"><span class="ref">${esc(p.ref)}</span><span>${dtt(p.tarikh)}</span><span class="pill grey">${esc(p.status_bayaran)}</span><span class="ibs"><button class="ib" title="Butiran" onclick="openDrawer('${esc(p.ref)}')">i</button><button class="btn sm red" onclick="padamPendaftaran('${esc(p.ref)}')">Padam</button></span></div>`).join("")}</details>`;
   return `<div class="vbar"><div><b>${aktifOrang}</b>pendaftar belum bayar${aktif.length>aktifOrang?`<small style="display:block;color:var(--mute)">${aktif.length} rekod, ${aktif.length-aktifOrang} berulang</small>`:""}</div><div><b>${rm([...new Map(aktif.map(p=>[key(p),p])).values()].reduce((a, p) => a + p.harga, 0))}</b>potensi kutipan</div><div><b>${aktif.filter(p => Date.now() - new Date(p.tarikh) > 864e5).length}</b>melebihi 24 jam</div></div>
   <div class="tabs">${F.map(([k,t]) => `<button class="${S.abTab===k?"on":""}" onclick="S.abTab='${k}';render()">${t}<span class="n">${all.filter(p => match(p, k)).length}</span></button>`).join("")}</div>
   ${rows.length ? `<div class="qlist abn">${rows.map(g => `<div class="abgroup">${card(g[0])}${hist(g)}</div>`).join("")}</div>`
   : `<div class="card"><div class="empty">${S.abTab==="arkib"?"Tiada rekod diarkib.":"Tiada pendaftar abandon. Semua pendaftar telah membayar."}</div></div>`}`;
+}
+async function selesaiBerulang(ref, refBayar){
+  const k = p => (String(p.telefon||"").replace(/\D/g,"").slice(-9)) + "|" + String(p.d_nama||"").trim().toLowerCase();
+  const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;
+  const dupes = abandonList().filter(x => k(x) === k(p) && x.ref !== refBayar && !(x.bayaran||[]).some(b => b.status === "Disahkan") && x.status_bayaran !== "Berjaya" && !x.ustaz_id);
+  if(!dupes.length){ toast("Tiada rekod berulang untuk dipadam"); return; }
+  if(!confirm(`Bayaran ${p.nama} telah direkod pada ${refBayar}.\nPadam ${dupes.length} rekod pendaftaran berulang: ${dupes.map(x => x.ref).join(", ")}?\nRekod ${refBayar} dikekalkan.`)) return;
+  let n = 0;
+  for(const x of dupes){
+    try{
+      if(DEMO){ DM.P = DM.P.filter(y => y.ref !== x.ref); }
+      else { const { data, error } = await SBC.rpc("bh_padam_pendaftaran", { p_ref: x.ref }); if(error) throw new Error(error.message); if(!data || !data.ok) throw new Error((data && data.error) || "Gagal"); }
+      S.pendaftar = S.pendaftar.filter(y => y.ref !== x.ref); n++;
+    }catch(e){ toast(x.ref + ": " + e.message, true); }
+  }
+  toast(`${n} rekod berulang dipadam. ${refBayar} dikekalkan.`); render(); setTimeout(() => load({ silent: true }), 500);
 }
 async function padamPendaftaran(ref){
   const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;

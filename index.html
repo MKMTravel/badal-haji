@@ -233,8 +233,9 @@ textarea.in{height:auto;padding:11px 13px;resize:vertical;line-height:1.5}
   <section class="part" id="secA"><div class="sh"><span class="k">A</span><h2>Maklumat Pendaftar<small>Butiran untuk kami hubungi</small></h2><span class="st" id="stA">Belum lengkap</span></div>
 <div class="grid">
 <div class="f full" data-f="nama"><label for="nama">Nama penuh <i class="req" aria-hidden="true">*</i></label><input class="in" id="nama" autocomplete="name" placeholder="Seperti dalam kad pengenalan"><div class="msg">Sila isi nama penuh anda.</div></div>
+<div class="f" data-f="kp"><label for="kp">No. kad pengenalan <i class="req" aria-hidden="true">*</i></label><input class="in" id="kp" inputmode="numeric" autocomplete="off" placeholder="900101-01-1234" maxlength="14"><div class="msg">Sila isi no. kad pengenalan yang sah (12 digit).</div></div>
 <div class="f" data-f="telefon"><label for="telefon">No. telefon (WhatsApp) <i class="req" aria-hidden="true">*</i></label><input class="in" id="telefon" type="tel" inputmode="tel" autocomplete="tel" placeholder="012 345 6789"><div class="msg">Sila isi no. telefon yang sah.</div></div>
-<div class="f" data-f="emel"><label for="emel">Emel <i class="req" aria-hidden="true">*</i></label><input class="in" id="emel" type="email" inputmode="email" autocomplete="email" placeholder="nama@contoh.com"><div class="msg">Sila isi emel yang sah.</div></div>
+<div class="f full" data-f="emel"><label for="emel">Emel <i class="req" aria-hidden="true">*</i></label><input class="in" id="emel" type="email" inputmode="email" autocomplete="email" placeholder="nama@contoh.com"><div class="msg">Sila isi emel yang sah.</div></div>
 <div class="f full" data-f="alamat"><label for="alamat">Alamat <i class="req" aria-hidden="true">*</i></label><textarea class="in" id="alamat" rows="2" autocomplete="street-address" placeholder="No. rumah, jalan, poskod, bandar, negeri"></textarea><div class="msg">Sila isi alamat anda.</div></div>
 
 </div></section>
@@ -325,7 +326,7 @@ textarea.in{height:auto;padding:11px 13px;resize:vertical;line-height:1.5}
 window.SINGLE = true;
 document.getElementById("tarikh").textContent = new Date().toLocaleDateString("ms-MY",{day:"numeric",month:"short",year:"numeric"});
 function onInput(){
-  const A = [val("nama").length>=3, phoneOk(val("telefon")), /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val("emel")), val("alamat").length>=8];
+  const A = [val("nama").length>=3, kpOk(val("kp")), phoneOk(val("telefon")), /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val("emel")), val("alamat").length>=8];
   const B = [!!val("hubungan"), !!statusVal(), val("d_nama").length>=3];
   const C = [document.getElementById("setuju").checked, document.getElementById("pdpa").checked];
   const all = A.concat(B, C), p = Math.round(all.filter(Boolean).length / all.length * 100);
@@ -404,10 +405,13 @@ function show(n){
 }
 function mark(f, bad){ const el = document.querySelector(`[data-f="${f}"]`); if(el) el.classList.toggle("err", bad); return !bad; }
 function phoneOk(p){ const d = p.replace(/\D/g, ""); return d.length >= 9 && d.length <= 13; }
+const kpOk = v => /^\d{12}$/.test(String(v || "").replace(/\D/g, ""));
+const kpFmt = v => { const d = String(v || "").replace(/\D/g, "").slice(0, 12); return d.length === 12 ? d.slice(0,6) + "-" + d.slice(6,8) + "-" + d.slice(8) : d; };
 function validate(n){
   let ok = true;
   if(n === 1){
     ok = mark("nama", val("nama").length < 3) && ok;
+    ok = mark("kp", !kpOk(val("kp"))) && ok;
     ok = mark("telefon", !phoneOk(val("telefon"))) && ok;
     ok = mark("emel", !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val("emel"))) && ok;
     ok = mark("alamat", val("alamat").length < 8) && ok;
@@ -505,6 +509,7 @@ async function submitForm(){
     $("form").classList.add("hide");
     if(window.onDone) onDone();
     window.scrollTo({top: 0, behavior: "smooth"});
+    try{ if(!DEMO && window.trSb && kpOk(val("kp"))) trSb.rpc("bh_simpan_kp", { p_ref: res.id, p_telefon: val("telefon"), p_kp: kpFmt(val("kp")) }).catch(() => {}); }catch(e){}  /* no. KP pendaftar untuk e-invois */
     if(window.showTransfer){ showTransfer(res.id); return; }  /* bayaran: pindahan bank + resit */
     if(res.payment_url){ goPay(res.id, res.payment_url); return; }
     if(DEMO && $("demopay")){ showDemoPay(res.id); return; }

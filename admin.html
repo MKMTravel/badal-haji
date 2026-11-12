@@ -246,6 +246,7 @@ table.t{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--ca
 .paysum .pbar{height:7px;border-radius:99px;background:#E9ECF8;margin:8px 0 10px;display:flex;overflow:hidden}
 .paysum .pbar i{display:block;height:100%;background:var(--ok)}.paysum .pbar i.t{background:var(--warn)}
 table.t.pay{font-size:13px}table.t.pay td,table.t.pay th{padding:8px 8px}table.t.pay small{display:block;color:var(--mute);font-size:11.5px}
+.kpv .ib{width:22px;height:22px;font-size:12px;vertical-align:middle;margin-left:2px}
 .fg{margin-bottom:10px}.fg label{display:block;font-size:12.5px;font-weight:700;color:var(--mute);margin-bottom:4px}
 @media (max-width:900px){.qc.pay2{grid-template-columns:1fr}}
 .match{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--ok)}
@@ -950,11 +951,23 @@ function vPembayaran(){
   let body;
   if(!list.length) body = `<div class="card"><div class="empty">${{semak:"Tiada resit baru untuk disemak. Notifikasi akan muncul bila ada resit masuk.",ansuran:"Tiada kes ansuran.",masalah:"Tiada bayaran bermasalah.",sah:"Belum ada bayaran penuh disahkan."}[cur[0]]}</div></div>`;
   else body = `<div class="qlist">${list.map(p => `<div class="qc pay2" id="q_${esc(p.ref)}">
-    <div><span class="ref">${esc(p.ref)}</span>${p.ujian?' <span class="pill warn">UJIAN</span>':""}<small>${esc(p.nama)}</small><small>Untuk ${esc(gelaran(p))}</small><small>${esc(p.telefon)}</small>${!p.bayaran&&p.transaction_id&&p.transaction_id!=="RESIT"?`<small>${esc(p.bank||"-")} | ${esc(p.transaction_id)}</small><button class="btn sm ghost" style="margin-top:6px" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>${p.status_bayaran==="Berjaya"&&p.semakan!=="Disahkan"?`<div class="row" style="margin-top:6px"><button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan</button></div>`:""}`:""}</div>
+    <div><span class="ref">${esc(p.ref)}</span>${p.ujian?' <span class="pill warn">UJIAN</span>':""}<small>${esc(p.nama)}</small><small>Untuk ${esc(gelaran(p))}</small><small>${esc(p.telefon)}</small><small>${kpHtml(p)}</small>${!p.bayaran&&p.transaction_id&&p.transaction_id!=="RESIT"?`<small>${esc(p.bank||"-")} | ${esc(p.transaction_id)}</small><button class="btn sm ghost" style="margin-top:6px" onclick="showTrx('${esc(p.ref)}',this)">${SVG.rcpt} Resit Bayarcash</button>${p.status_bayaran==="Berjaya"&&p.semakan!=="Disahkan"?`<div class="row" style="margin-top:6px"><button class="btn sm" onclick="verify('${esc(p.ref)}','Disahkan',this)">Sahkan</button></div>`:""}`:""}</div>
     <div>${payPanel(p)}</div></div>`).join("")}</div>`;
   return `<div class="tabs">${tabs.map(t => `<button class="${t[0]===cur[0]?"on":""}" onclick="S.payTab='${t[0]}';render()">${t[1]}<span class="n ${t[3]&&t[2].length?"r":""}">${t[2].length}</span></button>`).join("")}
     <button class="btn sm ghost" style="margin-left:auto;align-self:center" onclick="copyText(bankText(),'Maklumat akaun bank disalin')">${SVG.copy} Akaun bank</button></div>
   ${cur[0]==="semak"&&list.length?`<div class="note info" style="margin-bottom:12px">Tekan ikon resit untuk melihat, padankan amaun dan tarikh dengan penyata bank Jabatan Haji. Jika wang telah masuk, tekan <b>Sahkan</b> pada baris itu. Bayaran boleh beransur; bila jumlah disahkan mencukupi harga, kes akan dipindah ke Agihan pengendali dan pautan portal diberi kepada pendaftar secara automatik.</div>`:""}${body}`;
+}
+/* No. KP pendaftar (e-invois) */
+const kpHtml = p => `<span class="kpv">No. KP: <b>${p.kp ? esc(p.kp) : '<span style="color:var(--bad)">tiada</span>'}</b> ${p.kp?`<button class="ib" title="Salin no. KP" onclick="copyText('${esc(p.kp)}','No. KP disalin')">${SVG.copy}</button>`:""}<button class="ib" title="${p.kp?"Ubah":"Isi"} no. KP" onclick="ubahKp('${esc(p.ref)}')">&#9998;</button></span>`;
+async function ubahKp(ref){
+  const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;
+  const v = prompt("No. kad pengenalan pendaftar (12 digit) untuk " + p.nama + ":", p.kp || "");
+  if(v === null) return;
+  const d = v.replace(/\D/g, ""); if(d.length !== 12){ toast("No. KP mesti 12 digit", true); return; }
+  try{
+    if(!DEMO){ const { data, error } = await SBC.rpc("bh_admin_kp", { p_ref: ref, p_kp: d }); if(error) throw new Error(error.message); if(!data || !data.ok) throw new Error((data && data.error) || "Gagal"); }
+    p.kp = d.slice(0,6) + "-" + d.slice(6,8) + "-" + d.slice(8); toast("No. KP disimpan"); render(); if(S.open) openDrawer(S.open);
+  }catch(e){ toast(e.message, true); }
 }
 /* ---------- Rekod bayaran: sahkan / tambah / padam ---------- */
 async function rpc(name, args){
@@ -1160,7 +1173,7 @@ function openDrawer(ref){
       <div class="row" style="margin-top:12px">${portalLink(p)&&p.status_bayaran==="Berjaya"?`<a class="btn sm ghost" href="${esc(portalLink(p))}" target="_blank" rel="noopener">${SVG.portal} Portal penjejakan</a><button class="btn sm ghost" onclick="copyText('${esc(portalLink(p))}','Pautan portal disalin')">${SVG.copy} Salin pautan</button>`:""}<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button></div></div>
     <div class="sec"><h4>Pembayaran</h4>${pay}</div>
     <div class="sec"><h4>Pengendali badal haji</h4>${ust}</div>
-    <div class="sec"><h4>Pendaftar</h4><dl class="kv"><dt>Nama</dt><dd>${esc(p.nama)}</dd><dt>Telefon</dt><dd>${esc(p.telefon)} ${wa?`<a href="${wa}" target="_blank" rel="noopener" style="margin-left:6px">WhatsApp</a>`:""}</dd><dt>Emel</dt><dd>${esc(p.emel)}</dd><dt>Alamat</dt><dd>${esc(p.alamat)}</dd></dl></div>
+    <div class="sec"><h4>Pendaftar</h4><dl class="kv"><dt>Nama</dt><dd>${esc(p.nama)}</dd><dt>No. KP</dt><dd>${kpHtml(p)}</dd><dt>Telefon</dt><dd>${esc(p.telefon)} ${wa?`<a href="${wa}" target="_blank" rel="noopener" style="margin-left:6px">WhatsApp</a>`:""}</dd><dt>Emel</dt><dd>${esc(p.emel)}</dd><dt>Alamat</dt><dd>${esc(p.alamat)}</dd></dl></div>
     <div class="sec"><h4>Orang yang dibadalkan</h4><dl class="kv"><dt>Nama</dt><dd>${esc(gelaran(p))}</dd><dt>Hubungan</dt><dd>${esc(p.hubungan||"-")} kepada pendaftar</dd><dt>Status</dt><dd>${esc(p.d_status)}</dd><dt>Jantina</dt><dd>${esc(p.d_jantina||"-")}</dd>${p.d_kp?`<dt>No. KP</dt><dd>${esc(p.d_kp)}</dd>`:""}<dt>Dokumen</dt><dd>${p.dokumen?`<a href="#" onclick="openDoc('${esc(p.ref)}');return false">Buka dokumen</a>`:"Tiada"}</dd></dl></div>
     <div class="sec"><h4>Akad</h4><dl class="kv"><dt>Musim</dt><dd>${esc(p.musim)}</dd><dt>Jenis haji</dt><dd>Haji ${esc(p.jenis_haji)}</dd><dt>Harga</dt><dd>${rm(p.harga)}</dd><dt>Akad</dt><dd>Versi ${esc(p.versi_akad||"-")}, dipersetujui ${dtt(p.masa_akad)}</dd></dl>
       <button class="btn sm ghost" style="margin-top:10px" onclick="showAkad('${esc(p.ref)}', this)">Lihat teks akad dipersetujui</button><div id="akadBox"></div></div>
@@ -1564,9 +1577,9 @@ const resitLink = p => "https://badalhaji.mymkm.my/?resit=" + encodeURIComponent
 async function loadResit(){
   if(DEMO || !SBC) return;
   try{
-    const { data } = await SBC.from("bh_pendaftaran").select("ref,resit_path,resit_bank,resit_tarikh,resit_nota,resit_masa").neq("resit_path", "");
+    const { data } = await SBC.from("bh_pendaftaran").select("ref,kp,resit_path,resit_bank,resit_tarikh,resit_nota,resit_masa");
     const m = {}; (data || []).forEach(r => m[r.ref] = r);
-    S.pendaftar.forEach(p => { const r = m[p.ref]; if(r) Object.assign(p, { resit_path: r.resit_path, resit_bank: r.resit_bank, resit_tarikh: r.resit_tarikh, resit_nota: r.resit_nota, resit_masa: r.resit_masa }); });
+    S.pendaftar.forEach(p => { const r = m[p.ref]; if(r) Object.assign(p, { kp: r.kp || "", resit_path: r.resit_path, resit_bank: r.resit_bank, resit_tarikh: r.resit_tarikh, resit_nota: r.resit_nota, resit_masa: r.resit_masa }); });
   }catch(e){ console.warn("resit", e); }
   try{
     const { data } = await SBC.from("bh_bayaran").select("id,ref,amaun,bank,tarikh,resit_path,nota,sumber,status,catatan_semakan,created_at,tarikh_semakan").order("id");

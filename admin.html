@@ -943,9 +943,10 @@ async function selesaiBerulang(ref, refBayar){
   }
   toast(`${n} rekod berulang dipadam. ${refBayar} dikekalkan.`); render(); setTimeout(() => load({ silent: true }), 500);
 }
+const bolehPadam = p => !p.ustaz_id && p.status_bayaran !== "Berjaya" && !(p.bayaran||[]).some(b => b.status === "Disahkan");
 async function padamPendaftaran(ref){
   const p = S.pendaftar.find(x => x.ref === ref); if(!p) return;
-  if(p.ustaz_id || p.status_bayaran === "Berjaya" || sahOf(p) > 0){ toast("Pendaftaran yang ada bayaran disahkan atau pengendali tidak boleh dipadam. Guna Arkib.", true); return; }
+  if(!bolehPadam(p)){ toast("Pendaftaran yang ada bayaran disahkan atau pengendali tidak boleh dipadam. Guna Arkib.", true); return; }
   if(!confirm(`Padam pendaftaran ${ref} (${p.nama})?\nRekod pendaftaran dan resit berkaitan akan dibuang terus. Tindakan ini tidak boleh diundur.`)) return;
   try{
     if(DEMO){ DM.P = DM.P.filter(x => x.ref !== ref); }
@@ -971,7 +972,7 @@ function payRows(p){
     <td><span class="pill ${st[0]}">${st[1]}</span></td>
     <td><div class="ibs" style="justify-content:flex-end;flex-wrap:wrap">${b.resit_path?`<button class="ib" title="Lihat resit" onclick="lihatResit('${esc(p.ref)}',false,'${esc(b.resit_path)}')">${SVG.rcpt}</button><button class="ib" title="Muat turun resit" onclick="lihatResit('${esc(p.ref)}',true,'${esc(b.resit_path)}')">${SVG.dl}</button>`:`<span class="pill grey">Tiada resit</span>`}
       ${b.status==="Menunggu"?`<button class="btn sm red" onclick="sahBayaran(${Number(b.id)},'Bermasalah',this)">Bermasalah</button><button class="btn sm" onclick="sahBayaran(${Number(b.id)},'Disahkan',this)">Sahkan</button>`:b.status==="Bermasalah"?`<button class="btn sm ghost" onclick="sahBayaran(${Number(b.id)},'Disahkan',this)">Sahkan</button>`:""}
-      ${!p.ustaz_id&&b.status!=="Menunggu"?`<button class="ib" title="Padam rekod" onclick="padamBayaran(${Number(b.id)},'${esc(p.ref)}')">&times;</button>`:""}</div></td></tr>`; }).join("")}</tbody></table>`;
+      ${!p.ustaz_id?`<button class="ib" title="Padam rekod bayaran ini" onclick="padamBayaran(${Number(b.id)},'${esc(p.ref)}')">&times;</button>`:""}</div></td></tr>`; }).join("")}</tbody></table>`;
 }
 function payPanel(p, o = {}){
   const sah = sahOf(p), tunggu = tungguOf(p), baki = bakiOf(p), harga = Number(p.harga) || 0;
@@ -980,7 +981,7 @@ function payPanel(p, o = {}){
   return `<div class="paysum"><div class="pg"><div><small>Harga</small><b>${rm(harga)}</b></div><div><small>Disahkan</small><b style="color:var(--ok)">${rm(sah)}</b></div><div><small>Menunggu</small><b style="color:var(--warn)">${rm(tunggu)}</b></div><div><small>Baki</small><b style="color:${baki?"var(--bad)":"var(--ok)"}">${rm(baki)}</b></div><div><span class="pill ${st[0]}">${st[1]}</span></div></div>
     <div class="pbar"><i style="width:${pct}%"></i><i class="t" style="width:${pctT}%"></i></div></div>
     ${payRows(p)}
-    <div class="row" style="margin-top:10px;flex-wrap:wrap">${!p.ustaz_id?`<button class="btn sm ghost" onclick="tambahBayaran('${esc(p.ref)}')">+ Rekod bayaran (admin)</button>`:""}${o.drawer?"":`<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button><button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button>`}</div>`;
+    <div class="row" style="margin-top:10px;flex-wrap:wrap">${!p.ustaz_id?`<button class="btn sm ghost" onclick="tambahBayaran('${esc(p.ref)}')">+ Rekod bayaran (admin)</button>`:""}${o.drawer?"":`<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button><button class="btn sm ghost" onclick="openDrawer('${esc(p.ref)}')">Butiran</button>`}${bolehPadam(p)?`<button class="btn sm red" style="margin-left:auto" title="Padam pendaftaran ini" onclick="padamPendaftaran('${esc(p.ref)}')">Padam pendaftaran</button>`:""}</div>`;
 }
 function vPembayaran(){
   const P = inMusim();
@@ -1214,7 +1215,7 @@ function openDrawer(ref){
   <div class="db">
     <div class="sec"><div class="row" style="margin-bottom:10px"><span class="pill ${s.c}">${s.t}</span><span style="margin-left:auto;font-size:12.5px;color:var(--mute)">Daftar ${dtt(p.tarikh)}</span></div>
       <div class="steps">${st.map((x,i) => `<div class="${x[1]?"on":i===cur?"cur":""}"><i></i><span>${x[0]}</span></div>`).join("")}</div>
-      <div class="row" style="margin-top:12px">${portalLink(p)&&p.status_bayaran==="Berjaya"?`<a class="btn sm ghost" href="${esc(portalLink(p))}" target="_blank" rel="noopener">${SVG.portal} Portal penjejakan</a><button class="btn sm ghost" onclick="copyText('${esc(portalLink(p))}','Pautan portal disalin')">${SVG.copy} Salin pautan</button>`:""}<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button></div></div>
+      <div class="row" style="margin-top:12px">${portalLink(p)&&p.status_bayaran==="Berjaya"?`<a class="btn sm ghost" href="${esc(portalLink(p))}" target="_blank" rel="noopener">${SVG.portal} Portal penjejakan</a><button class="btn sm ghost" onclick="copyText('${esc(portalLink(p))}','Pautan portal disalin')">${SVG.copy} Salin pautan</button>`:""}<button class="btn sm wa" onclick="openWa('${esc(p.ref)}')">${SVG.wa} WhatsApp</button>${bolehPadam(p)?`<button class="btn sm red" style="margin-left:auto" onclick="padamPendaftaran('${esc(p.ref)}')">Padam pendaftaran</button>`:""}</div></div>
     <div class="sec"><h4>Pembayaran</h4>${pay}</div>
     <div class="sec"><h4>Pengendali badal haji</h4>${ust}</div>
     <div class="sec"><h4>Pendaftar</h4><dl class="kv"><dt>Nama</dt><dd>${esc(p.nama)}</dd><dt>No. KP</dt><dd>${kpHtml(p)}</dd><dt>Telefon</dt><dd>${esc(p.telefon)} ${wa?`<a href="${wa}" target="_blank" rel="noopener" style="margin-left:6px">WhatsApp</a>`:""}</dd><dt>Emel</dt><dd>${esc(p.emel)}</dd><dt>Alamat</dt><dd>${esc(p.alamat)}</dd></dl></div>
